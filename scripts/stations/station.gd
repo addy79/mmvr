@@ -82,6 +82,11 @@ func fill_figures(_figures: FigureArea) -> void:
 	pass
 
 
+## Direction from the bench toward the desktop camera's starting position.
+func view_direction() -> Vector3:
+	return Vector3(0.0, 0.32, 1.0)
+
+
 ## World points the desktop camera should keep in view.
 func frame_points() -> PackedVector3Array:
 	return PackedVector3Array([Vector3(-2, 0.5, 0), Vector3(2, 2.2, 0)])

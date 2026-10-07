@@ -47,6 +47,22 @@ func oblique_shear_stress() -> float:
 	return normal_stress() * sin(plane_angle) * cos(plane_angle)
 
 
+# Allowable loads for given allowable stresses, one per failure mode:
+#   rod:     P = sigma_all*A
+#   pin:     P = tau_all*n*A_pin
+#   bearing: P = sigma_b,all*t*d_p
+func allowable_load_rod(sigma_all: float) -> float:
+	return sigma_all * rod_area()
+
+
+func allowable_load_pin(tau_all: float) -> float:
+	return tau_all * (2.0 if double_shear else 1.0) * pin_area()
+
+
+func allowable_load_bearing(bearing_all: float) -> float:
+	return bearing_all * eye_thickness * pin_diameter
+
+
 # FS = sigma_Y / sigma for the rod
 func factor_of_safety() -> float:
 	return material.yield_strength / normal_stress() if load > 0.0 else INF

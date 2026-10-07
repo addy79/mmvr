@@ -47,6 +47,11 @@ func factor_of_safety() -> float:
 	return material.yield_strength / 2.0 / tau if tau > 0.0 else INF
 
 
+# Smallest solid shaft for an allowable shear stress: tau_all = 2T/(pi*c^3) => c = (2T/(pi*tau_all))^(1/3)
+func required_solid_radius(tau_all: float) -> float:
+	return pow(2.0 * absf(torque) / (PI * tau_all), 1.0 / 3.0)
+
+
 # Power transmission: P = T*omega = 2*pi*f*T [W]
 func power_at(frequency: float) -> float:
 	return 2.0 * PI * frequency * torque

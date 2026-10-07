@@ -38,3 +38,8 @@ func test_pure_bending() -> void:
 	assert_within_1pct(b.max_strain(), 3.75e-5, "c/rho")
 	assert_within_1pct(b.strain_at(0.1), -3.75e-5, "top shortens")
 	assert_within_1pct(b.stress_at(-0.1), 7.5e6, "bottom tension")
+
+
+# T = 2 kN*m, tau_all = 60 MPa: c = (2*2000/(pi*60e6))^(1/3) = 27.68 mm
+func test_required_radius() -> void:
+	assert_within_1pct(TorsionShaft.new().required_solid_radius(60.0e6), 0.027679, "c_min")

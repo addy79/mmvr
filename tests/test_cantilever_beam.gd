@@ -41,3 +41,8 @@ func test_fixed_end_and_curvature() -> void:
 	for x: float in [0.5, 1.6]:
 		var curvature: float = (beam.slope_at(x + h) - beam.slope_at(x - h)) / (2.0 * h)
 		assert_within_1pct(beam.flexural_rigidity() * curvature, -beam.moment_at(x), "EI v'' = -M")
+
+
+# v_max = 2.0e-4 m with I = 6.6667e-5: limit 1.0e-4 m needs I = 1.3333e-4 m^4.
+func test_required_inertia() -> void:
+	assert_within_1pct(_beam(1000.0, 2.0, 0.0).required_inertia(1.0e-4), 1.33333e-4, "I_req")

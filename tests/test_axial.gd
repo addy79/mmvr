@@ -39,3 +39,12 @@ func test_thermal() -> void:
 	m.ends_fixed = true
 	assert_within_1pct(m.stress(), -117.0e6, "thermal stress")
 	assert_eq(m.elongation(), 0.0)
+
+
+# Allowables 150 / 75 / 225 MPa: rod 150e6*314.16e-6 = 47.12 kN, pin (double) 75e6*2*201.06e-6
+# = 30.16 kN, bearing 225e6*0.02*0.016 = 72.0 kN.
+func test_allowable_loads() -> void:
+	var r := RodAndPin.new()
+	assert_within_1pct(r.allowable_load_rod(150.0e6), 47.124e3, "rod")
+	assert_within_1pct(r.allowable_load_pin(75.0e6), 30.159e3, "pin")
+	assert_within_1pct(r.allowable_load_bearing(225.0e6), 72.0e3, "bearing")

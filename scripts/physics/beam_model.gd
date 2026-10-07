@@ -109,6 +109,12 @@ func factor_of_safety() -> float:
 	return material.yield_strength / sigma if sigma > 0.0 else INF
 
 
+# Stiffness design: v is proportional to 1/I, so the I that brings v_max down to `limit` is
+# I_req = I * v_max/limit
+func required_inertia(limit: float) -> float:
+	return section.moment_of_inertia() * absf(max_deflection()) / limit
+
+
 # EI [N*m^2]
 func flexural_rigidity() -> float:
 	return material.youngs_modulus * section.moment_of_inertia()

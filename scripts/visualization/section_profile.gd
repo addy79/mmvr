@@ -31,6 +31,23 @@ static func for_section(section: CrossSection) -> SectionProfile:
 	return profile
 
 
+## Copy transformed by p -> basis * p + offset (normals by the basis only), for drawing
+## sections larger than life, turned a quarter turn, or shifted off the axis.
+func transformed(basis: Transform2D, offset: Vector2 = Vector2.ZERO) -> SectionProfile:
+	var out := SectionProfile.new()
+	for s: int in strip_points.size():
+		var pts := PackedVector2Array()
+		var nrm := PackedVector2Array()
+		for i: int in strip_points[s].size():
+			pts.append(basis * strip_points[s][i] + offset)
+			nrm.append((basis.basis_xform(strip_normals[s][i])).normalized())
+		out.strip_points.append(pts)
+		out.strip_normals.append(nrm)
+	for p: Vector2 in cap_triangles:
+		out.cap_triangles.append(basis * p + offset)
+	return out
+
+
 static func _box(z0: float, y0: float, z1: float, y1: float) -> PackedVector2Array:
 	return PackedVector2Array([Vector2(z0, y0), Vector2(z1, y0), Vector2(z1, y1), Vector2(z0, y1)])
 

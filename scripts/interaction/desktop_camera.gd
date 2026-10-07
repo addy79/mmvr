@@ -10,7 +10,6 @@ const ACCELERATION: float = 10.0
 const DRAG_SENSITIVITY: float = 0.004  ## [rad/pixel]
 const KEY_TURN_SPEED: float = 1.5      ## [rad/s]
 const SCROLL_STEP: float = 0.35        ## [m per wheel notch]
-const FIT_DIRECTION := Vector3(0.0, 0.32, 1.0)  ## from the lab toward the camera
 
 var _yaw: float = 0.0
 var _pitch: float = 0.0
@@ -23,7 +22,7 @@ var _moved: bool = false
 
 ## Looks down at the bench from the front and finds the closest view that shows every point
 ## inside `free` (window fractions not covered by panels). Becomes the R view.
-func fit_view(points: PackedVector3Array, free: Rect2) -> void:
+func fit_view(points: PackedVector3Array, free: Rect2, direction: Vector3) -> void:
 	var window: Vector2 = get_viewport().get_visible_rect().size
 	if window.y <= 0.0 or points.is_empty():
 		return
@@ -42,7 +41,7 @@ func fit_view(points: PackedVector3Array, free: Rect2) -> void:
 	for p: Vector3 in points:
 		center += p
 	center /= points.size()
-	var back := FIT_DIRECTION.normalized()
+	var back := direction.normalized()
 	var look := Basis.looking_at(-back)
 	for step: int in 150:
 		var distance: float = 1.2 + step * 0.1

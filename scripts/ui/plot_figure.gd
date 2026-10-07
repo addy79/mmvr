@@ -212,4 +212,4 @@ static func _fmt(v: float) -> String:
 		return String.num(v, 1).trim_suffix(".0")
 	if a >= 0.01:
 		return String.num(v, 3)
-	return "%.1e" % v
+	return String.num_scientific(v)

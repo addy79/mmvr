@@ -201,7 +201,7 @@ func _frame_desktop_view() -> void:
 		var x0: float = (control_panel.position.x + control_panel.size.x + 8) / window.x
 		var x1: float = lesson_panel.position.x / window.x
 		free = Rect2(x0, 0.0, x1 - x0, 1.0)
-	camera.fit_view(station.frame_points(), free)
+	camera.fit_view(station.frame_points(), free, station.view_direction())
 
 
 func _unhandled_input(event: InputEvent) -> void:

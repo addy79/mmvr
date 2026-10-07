@@ -35,19 +35,19 @@ func write(beam: BeamModel) -> void:
 	texture.update(_image)
 
 
-## Column: lateral deflection and the two face stresses (compression negative) along the
-## column, read from the EulerColumn model at s = x/L.
-func write_column(column: EulerColumn) -> void:
+## Any member: deflection(s), top-face and bottom-face stress(s) at s = x/L in [0, 1],
+## each normalized by its largest magnitude. Used for columns.
+func write_profile(deflection: Callable, top: Callable, bottom: Callable) -> void:
 	var v_ref: float = 0.0
 	var sigma_ref: float = 0.0
 	for i: int in SAMPLES:
 		var s: float = float(i) / (SAMPLES - 1)
-		v_ref = maxf(v_ref, absf(column.lateral_deflection_at(s)))
-		sigma_ref = maxf(sigma_ref, maxf(absf(column.stress_at(s, 1.0)), absf(column.stress_at(s, -1.0))))
+		v_ref = maxf(v_ref, absf(deflection.call(s)))
+		sigma_ref = maxf(sigma_ref, maxf(absf(top.call(s)), absf(bottom.call(s))))
 	for i: int in SAMPLES:
 		var s: float = float(i) / (SAMPLES - 1)
-		_image.set_pixel(i, 0, Color(_ratio(column.lateral_deflection_at(s), v_ref),
-				_ratio(column.stress_at(s, 1.0), sigma_ref), _ratio(column.stress_at(s, -1.0), sigma_ref)))
+		_image.set_pixel(i, 0, Color(_ratio(deflection.call(s), v_ref), _ratio(top.call(s), sigma_ref),
+				_ratio(bottom.call(s), sigma_ref)))
 		_image.set_pixel(i, 1, Color(0.0, 0.0, 0.0))
 	texture.update(_image)
 

@@ -32,15 +32,15 @@ func _run() -> void:
 			_check(text.length() > 200, "ch%d step %d has lesson text" % [station.chapter, s + 1])
 			await _shot("ch%02d_step%d.png" % [station.chapter, s + 1])
 			if OS.get_cmdline_user_args().has("--3d-shots"):
-				_main.get("_overlay").visible = false
+				_hide_panels(true)
 				await _frames(2)
 				await _shot("ch%02d_step%d_3d.png" % [station.chapter, s + 1])
-				_main.get("_overlay").visible = true
-		_main.get("_overlay").visible = false
+				_hide_panels(false)
+		_hide_panels(true)
 		station.set_step(0)
 		await _frames(3)
 		await _shot("ch%02d_3d.png" % station.chapter)
-		_main.get("_overlay").visible = true
+		_hide_panels(false)
 		await _station_checks(station)
 	print("SELFTEST %s: %d failure(s)" % ["PASSED" if _failures == 0 else "FAILED", _failures])
 	get_tree().quit(_failures)
@@ -55,6 +55,16 @@ func _station_checks(station: Station) -> void:
 			station.set_control(&"w", 0.0)
 			await _frames(2)
 			_check(station.lesson_text().contains("7.50 kN"), "ch5: a = 1 m gives R_A = 7.50 kN")
+
+
+## Hides (or shows) the desktop panels and re-frames the camera like pressing Tab.
+func _hide_panels(hide: bool) -> void:
+	var overlay: CanvasLayer = _main.get("_overlay")
+	if overlay == null:
+		return
+	overlay.visible = not hide
+	(_main.get("camera") as DesktopCamera).release_view()
+	_main.call("_frame_desktop_view")
 
 
 func _check(ok: bool, label: String) -> void:
