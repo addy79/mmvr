@@ -1,122 +1,81 @@
 extends Node3D
-## Builds the lab in code and wires the signal flow:
-##   control panel / load handle  ->  BeamController  --beam_changed-->  views and panels.
+## Builds the lab in code: environment, the player (VR rig or desktop camera), the two
+## panels, and the current chapter station. Signal flow:
+##   ControlPanel / station knobs -> Station.set_control -> Station.changed -> panels refresh.
 ## Starts in VR when an OpenXR runtime is running, otherwise in desktop mode.
 
-const BEAM_ORIGIN := Vector3(-2.0, 0.95, 0.0)  ## bottom fiber at support A [m]
-## Largest drawn deflection [m]; a bigger exaggeration is reduced so the beam stays on screen.
-const MAX_DRAWN_DEFLECTION: float = 0.6
-const XR_PLAYER_START := Vector3(0.0, 0.0, 1.6)
+const STATIONS: PackedStringArray = [
+	"res://scripts/stations/stress_station.gd",
+	"res://scripts/stations/axial_station.gd",
+	"res://scripts/stations/torsion_station.gd",
+	"res://scripts/stations/pure_bending_station.gd",
+	"res://scripts/stations/beam_station.gd",
+	"res://scripts/stations/shear_station.gd",
+	"res://scripts/stations/transformation_station.gd",
+	"res://scripts/stations/principal_station.gd",
+	"res://scripts/stations/deflection_station.gd",
+	"res://scripts/stations/column_station.gd",
+]
+const TOPIC_TITLES: PackedStringArray = ["1 · Stress", "2 · Axial loading", "3 · Torsion",
+	"4 · Pure bending", "5 · Beams", "6 · Shearing stresses", "7 · Stress transformation",
+	"8 · Principal stresses", "9 · Beam deflection", "10 · Columns"]
+const XR_PLAYER_START := Vector3(0.0, 0.0, 2.2)
 const CONTROL_PANEL: PackedScene = preload("res://scenes/control_panel.tscn")
+const LESSON_PANEL: PackedScene = preload("res://scenes/lesson_panel.tscn")
 ## Loaded only in VR: preloading it in desktop mode logs a "Viewport Texture must be set" error.
 const SCREEN_3D_PATH: String = "res://addons/godot-xr-tools/objects/viewport_2d_in_3d.tscn"
 
-var controller: BeamController = BeamController.new()
-var data: BeamDataTexture = BeamDataTexture.new()
-var beam_view: BeamView = BeamView.new(data)
-var load_handle: LoadHandle = LoadHandle.new(BeamController.LENGTH)
-var shear_diagram: DiagramView = DiagramView.new(DiagramView.Kind.SHEAR, BeamController.LENGTH, data)
-var moment_diagram: DiagramView = DiagramView.new(DiagramView.Kind.MOMENT, BeamController.LENGTH, data)
-var formula_panel: FormulaPanel = FormulaPanel.new()
-var panel: ControlPanel
+var station: Station
+var station_index: int = -1
+var control_panel: ControlPanel
+var lesson_panel: LessonPanel
 var xr_active: bool = false
+var camera: DesktopCamera
 
 var _overlay: CanvasLayer
-var _relative_to_yield: bool = false
-var _requested_exaggeration: float = ControlPanel.DEFAULT_EXAGGERATION
 
 
 func _ready() -> void:
 	InputSetup.register()
-	add_child(controller)
 	_build_environment()
-	_build_lab()
 	# --xr-preview builds the VR scene without a headset, seen from the XR camera's start pose.
 	xr_active = _start_xr() or OS.get_cmdline_user_args().has("--xr-preview")
 	if xr_active:
 		_build_xr_player()
-		if not get_viewport().use_xr:
-			get_viewport().get_camera_3d().fov = 100.0  # preview: roughly a Quest's field of view
 	else:
 		_build_desktop()
-
-	var names := PackedStringArray()
-	for s: CrossSection in controller.sections:
-		names.append(s.display_name)
-	var material_names := PackedStringArray()
-	for m: LabMaterial in controller.materials:
-		material_names.append(m.display_name.get_slice(" ", 0))
-	panel.setup(names, material_names, BeamController.LENGTH,
-			BeamController.MIN_LOAD, BeamController.MAX_LOAD, not xr_active)
-
-	panel.section_selected.connect(controller.set_section_index)
-	panel.material_selected.connect(controller.set_material_index)
-	panel.load_changed.connect(controller.set_load)
-	panel.load_position_changed.connect(controller.set_load_position)
-	panel.exaggeration_changed.connect(_set_exaggeration)
-	panel.color_scale_changed.connect(_set_color_scale)
-	load_handle.slider_moved.connect(controller.set_load_position)
-	controller.beam_changed.connect(_on_beam_changed)
-
-	_on_beam_changed(controller.beam)
+	control_panel.topic_selected.connect(load_station)
+	control_panel.control_changed.connect(func(id: StringName, v: float) -> void: station.set_control(id, v))
+	lesson_panel.step_selected.connect(func(i: int) -> void: station.set_step(i))
+	load_station(4)
 
 	if OS.get_cmdline_user_args().has("--selftest"):
 		add_child(load("res://tests/scene_selftest.gd").new(self))
 
 
-func _on_beam_changed(beam: SimplySupportedBeam) -> void:
-	data.write(beam)
-	beam_view.show_beam(beam)
-	load_handle.show_beam(beam)
-	shear_diagram.show_beam(beam)
-	moment_diagram.show_beam(beam)
-	formula_panel.show_beam(beam)
-	panel.show_beam(beam, controller.sections.find(beam.section), controller.materials.find(beam.material))
-	_update_stress_ratio()
-	_apply_exaggeration()
+func load_station(index: int) -> void:
+	if index == station_index:
+		return
+	if station:
+		remove_child(station)
+		station.queue_free()
+	station_index = index
+	station = (load(STATIONS[index]) as Script).new() as Station
+	add_child(station)
+	if camera:
+		station.add_child(DesktopKnobDrag.new(camera))
+	station.refresh()
+	station.changed.connect(_on_station_changed)
+	control_panel.show_station(station, index)
+	lesson_panel.show_station(station)
+	if camera:
+		camera.release_view()
+		_frame_desktop_view()
 
 
-func _set_exaggeration(factor: float) -> void:
-	_requested_exaggeration = factor
-	_apply_exaggeration()
-
-
-func _apply_exaggeration() -> void:
-	var shown: float = _requested_exaggeration
-	var v_max: float = controller.beam.max_deflection()
-	if v_max * shown > MAX_DRAWN_DEFLECTION:
-		shown = MAX_DRAWN_DEFLECTION / v_max
-	beam_view.set_exaggeration(shown)
-	load_handle.set_exaggeration(shown)
-	panel.show_exaggeration(_requested_exaggeration, shown)
-
-
-func _set_color_scale(relative_to_yield: bool) -> void:
-	_relative_to_yield = relative_to_yield
-	formula_panel.set_color_scale(relative_to_yield)
-	_update_stress_ratio()
-
-
-## Full color at sigma_max (auto) or at sigma_Y, where sigma_max/sigma_Y = 1/FS.
-func _update_stress_ratio() -> void:
-	beam_view.set_stress_ratio(1.0 / controller.beam.factor_of_safety() if _relative_to_yield else 1.0)
-
-
-func _build_lab() -> void:
-	var beam_root := Node3D.new()
-	beam_root.name = "Beam"
-	beam_root.position = BEAM_ORIGIN
-	add_child(beam_root)
-	beam_root.add_child(SupportsView.new(BeamController.LENGTH, BEAM_ORIGIN.y))
-	beam_root.add_child(beam_view)
-	beam_root.add_child(load_handle)
-	shear_diagram.position = Vector3(0.0, 0.8, -0.6)
-	moment_diagram.position = Vector3(0.0, 1.4, -0.6)
-	beam_root.add_child(shear_diagram)
-	beam_root.add_child(moment_diagram)
-	formula_panel.position = Vector3(3.2, 1.45, 0.55)
-	formula_panel.rotation.y = deg_to_rad(-38.0)
-	add_child(formula_panel)
+func _on_station_changed() -> void:
+	control_panel.sync(station)
+	lesson_panel.refresh()
 
 
 func _build_environment() -> void:
@@ -174,49 +133,75 @@ func _build_xr_player() -> void:
 	var rig := XRRig.new()
 	rig.position = XR_PLAYER_START
 	add_child(rig)
+	if not get_viewport().use_xr:
+		get_viewport().get_camera_3d().fov = 100.0  # preview: roughly a Quest's field of view
+	# Controls at arm's length on the left, the lesson on the right, clear of the bench.
+	var left := _screen(Vector2(0.62, 0.95), Vector2(620, 950), CONTROL_PANEL)
+	left.position = XR_PLAYER_START + Vector3(-0.95, 1.25, -0.25)
+	left.rotation = Vector3(deg_to_rad(-10.0), deg_to_rad(65.0), 0.0)
+	control_panel = left.get_scene_instance() as ControlPanel
+	control_panel.setup(TOPIC_TITLES, 22, "")
+	var right := _screen(Vector2(0.8, 1.05), Vector2(860, 1130), LESSON_PANEL)
+	right.position = XR_PLAYER_START + Vector3(1.05, 1.35, -0.3)
+	right.rotation = Vector3(deg_to_rad(-8.0), deg_to_rad(-62.0), 0.0)
+	lesson_panel = right.get_scene_instance() as LessonPanel
+	lesson_panel.setup(22)
+
+
+func _screen(meters: Vector2, pixels: Vector2, content: PackedScene) -> XRToolsViewport2DIn3D:
 	var screen := (load(SCREEN_3D_PATH) as PackedScene).instantiate() as XRToolsViewport2DIn3D
-	screen.screen_size = Vector2(0.6, 0.8)
-	screen.viewport_size = Vector2(600.0, 800.0)
+	screen.screen_size = meters
+	screen.viewport_size = pixels
 	screen.update_mode = XRToolsViewport2DIn3D.UpdateMode.UPDATE_THROTTLED
-	# Arm's length to the student's left and right, clear of the line of sight to the beam.
-	screen.position = XR_PLAYER_START + Vector3(-1.0, 1.2, -0.1)
-	screen.rotation = Vector3(deg_to_rad(-15.0), deg_to_rad(75.0), 0.0)
-	formula_panel.position = XR_PLAYER_START + Vector3(2.1, 1.5, -0.3)
-	formula_panel.rotation.y = deg_to_rad(-75.0)
 	add_child(screen)
-	screen.scene = CONTROL_PANEL
-	panel = screen.get_scene_instance() as ControlPanel
+	screen.scene = content
+	return screen
 
 
 func _build_desktop() -> void:
-	var camera := DesktopCamera.new()
-	camera.fov = 65.0
+	camera = DesktopCamera.new()
+	camera.fov = 60.0
 	add_child(camera)
 	camera.current = true
-	add_child(DesktopLoadDrag.new(camera, load_handle))
 	_overlay = CanvasLayer.new()
 	add_child(_overlay)
-	panel = CONTROL_PANEL.instantiate() as ControlPanel
-	panel.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE, Control.PRESET_MODE_MINSIZE, 10)
-	panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	_overlay.add_child(panel)
-	panel.resized.connect(_frame_desktop_view.bind(camera))
-	get_viewport().size_changed.connect(_frame_desktop_view.bind(camera))
+	control_panel = CONTROL_PANEL.instantiate() as ControlPanel
+	control_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	_overlay.add_child(control_panel)
+	var k := InputSetup.key_label
+	control_panel.setup(TOPIC_TITLES, 16, ("Move %s %s %s %s · up/down %s %s · drag the background or "
+			+ "use the arrow keys to look · scroll to zoom · %s resets the view · drag the colored "
+			+ "knobs to interact · Tab hides the panels") % [k.call("move_forward"), k.call("move_left"),
+			k.call("move_back"), k.call("move_right"), k.call("move_up"), k.call("move_down"), k.call("reset_view")])
+	lesson_panel = LESSON_PANEL.instantiate() as LessonPanel
+	lesson_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	_overlay.add_child(lesson_panel)
+	lesson_panel.setup(17)
+	get_viewport().size_changed.connect(_layout_desktop)
+	_layout_desktop()
 
 
-## Fits the lab into the part of the window above the control strip.
-func _frame_desktop_view(camera: DesktopCamera) -> void:
+## Left: controls; right: lesson; the 3D bench fills the space between.
+func _layout_desktop() -> void:
 	var window: Vector2 = get_viewport().get_visible_rect().size
-	if window.y <= 0.0:
-		return
-	var points := PackedVector3Array([
-		BEAM_ORIGIN + Vector3(-0.2, -0.2, 0.2), BEAM_ORIGIN + Vector3(BeamController.LENGTH + 0.2, -0.2, 0.2),
-		BEAM_ORIGIN + Vector3(-0.7, 1.9, -0.6), BEAM_ORIGIN + Vector3(BeamController.LENGTH, 1.9, -0.6)])
-	for corner: Vector2 in [Vector2(-1, -1), Vector2(-1, 1), Vector2(1, -1), Vector2(1, 1)]:
-		points.append(formula_panel.to_global(Vector3(corner.x, corner.y, 0.0) * 0.5
-				* Vector3(FormulaPanel.SIZE.x, FormulaPanel.SIZE.y, 0.0)))
-	var free: float = 1.0 - (panel.size.y + 20.0) / window.y if _overlay.visible else 1.0
-	camera.fit_view(points, free)
+	var left_w: float = clampf(window.x * 0.2, 270.0, 360.0)
+	var right_w: float = clampf(window.x * 0.3, 360.0, 600.0)
+	control_panel.position = Vector2(8, 8)
+	control_panel.size = Vector2(left_w, window.y - 16)
+	lesson_panel.position = Vector2(window.x - right_w - 8, 8)
+	lesson_panel.size = Vector2(right_w, window.y - 16)
+	if station:
+		_frame_desktop_view()
+
+
+func _frame_desktop_view() -> void:
+	var window: Vector2 = get_viewport().get_visible_rect().size
+	var free := Rect2(0, 0, 1, 1)
+	if _overlay.visible:
+		var x0: float = (control_panel.position.x + control_panel.size.x + 8) / window.x
+		var x1: float = lesson_panel.position.x / window.x
+		free = Rect2(x0, 0.0, x1 - x0, 1.0)
+	camera.fit_view(station.frame_points(), free)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -224,6 +209,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event.is_action_pressed("toggle_panel") and _overlay:
 		_overlay.visible = not _overlay.visible
+		_frame_desktop_view()
 	elif event.is_action_pressed("screenshot"):
 		print("Screenshot saved: ", await take_screenshot())
 

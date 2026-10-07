@@ -21,10 +21,12 @@ var _home := Transform3D.IDENTITY
 var _moved: bool = false
 
 
-## Looks down at the lab from the front and backs off until every point fits inside the top
-## free_fraction of the window (the rest is covered by the control strip). Becomes the R view.
-func fit_view(points: PackedVector3Array, free_fraction: float) -> void:
+## Looks down at the bench from the front and finds the closest view that shows every point
+## inside `free` (window fractions not covered by panels). Becomes the R view.
+func fit_view(points: PackedVector3Array, free: Rect2) -> void:
 	var window: Vector2 = get_viewport().get_visible_rect().size
+	if window.y <= 0.0 or points.is_empty():
+		return
 	var aspect: float = window.x / window.y
 	# Tiling window managers often give a tall window: keep the horizontal field of view then.
 	keep_aspect = KEEP_WIDTH if aspect < 1.3 else KEEP_HEIGHT
@@ -33,34 +35,40 @@ func fit_view(points: PackedVector3Array, free_fraction: float) -> void:
 	var tan_half: float = tan(deg_to_rad(fov) / 2.0)
 	var tan_h: float = tan_half if keep_aspect == KEEP_WIDTH else tan_half * aspect
 	var tan_v: float = tan_h / aspect
-	var bounds := AABB(points[0], Vector3.ZERO)
+	# Free region in normalized device coordinates (x right, y up, both -1..1), with a margin.
+	var ndc := Rect2(2.0 * free.position.x - 1.0, 1.0 - 2.0 * free.end.y,
+			2.0 * free.size.x, 2.0 * free.size.y).grow(-0.05)
+	var center := Vector3.ZERO
 	for p: Vector3 in points:
-		bounds = bounds.expand(p)
+		center += p
+	center /= points.size()
 	var back := FIT_DIRECTION.normalized()
 	var look := Basis.looking_at(-back)
-	var ndc_bottom: float = 1.0 - 2.0 * free_fraction + 0.04
-	for step: int in 120:
-		var distance: float = 2.0 + step * 0.1
-		for k: int in 50:
-			var target := Vector3(bounds.get_center().x, bounds.position.y - 1.0 + k * 0.06, bounds.get_center().z)
+	for step: int in 150:
+		var distance: float = 1.2 + step * 0.1
+		var target: Vector3 = center
+		var box := Rect2()
+		for iteration: int in 4:
 			var view: Transform3D = Transform3D(look, target + back * distance).affine_inverse()
-			if _all_inside(view, points, tan_h, tan_v, ndc_bottom):
-				reset_view(target + back * distance, target)
-				_home = global_transform
-				return
+			var depth: float = 0.0
+			box = Rect2()
+			for i: int in points.size():
+				var q: Vector3 = view * points[i]
+				var p := Vector2(q.x / (-q.z * tan_h), q.y / (-q.z * tan_v))
+				box = Rect2(p, Vector2.ZERO) if i == 0 else box.expand(p)
+				depth += -q.z / points.size()
+			# Slide the camera so the points' box is centred in the free region.
+			var shift: Vector2 = ndc.get_center() - box.get_center()
+			target += look.x * (-shift.x * depth * tan_h) + look.y * (-shift.y * depth * tan_v)
+		if ndc.encloses(box):
+			reset_view(target + back * distance, target)
+			_home = global_transform
+			return
 
 
-static func _all_inside(view: Transform3D, points: PackedVector3Array, tan_h: float, tan_v: float,
-		ndc_bottom: float) -> bool:
-	for p: Vector3 in points:
-		var q: Vector3 = view * p
-		if q.z > -0.1:
-			return false
-		var x: float = q.x / (-q.z * tan_h)
-		var y: float = q.y / (-q.z * tan_v)
-		if absf(x) > 0.96 or y > 0.96 or y < ndc_bottom:
-			return false
-	return true
+## Lets the next fit_view move the camera again (e.g. after switching stations).
+func release_view() -> void:
+	_moved = false
 
 
 ## Places the camera at pos looking at target. Call once the camera is in the tree.

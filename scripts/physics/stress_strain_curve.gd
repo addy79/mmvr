@@ -51,6 +51,22 @@ func permanent_set(eps_max: float) -> float:
 	return maxf(eps_max - stress_at(eps_max) / material.youngs_modulus, 0.0)
 
 
+## Specimen diameter / original diameter away from the neck. Elastic: Poisson contraction
+## d/d0 = 1 - nu*eps. Plastic: volume is conserved, d/d0 = 1/sqrt(1 + eps) (idealized).
+func diameter_ratio(eps: float) -> float:
+	if eps <= yield_strain() or material.behavior == LabMaterial.Behavior.BRITTLE:
+		return 1.0 - material.poisson_ratio * eps
+	return 1.0 / sqrt(1.0 + eps)
+
+
+## Extra local reduction of the diameter at the neck: 0 until sigma_U, growing linearly to
+## 35% at fracture (idealized visual model of necking).
+func neck_reduction(eps: float) -> float:
+	if material.behavior == LabMaterial.Behavior.BRITTLE or eps <= material.ultimate_strain:
+		return 0.0
+	return 0.35 * clampf((eps - material.ultimate_strain) / (material.fracture_strain - material.ultimate_strain), 0.0, 1.0)
+
+
 # Modulus of resilience: u_Y = sigma_Y^2 / (2E) (area under the elastic part) [J/m^3]
 func modulus_of_resilience() -> float:
 	var s: float = material.yield_strength if material.behavior != LabMaterial.Behavior.BRITTLE \

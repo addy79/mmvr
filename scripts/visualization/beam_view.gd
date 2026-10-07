@@ -1,15 +1,15 @@
 class_name BeamView
 extends MeshInstance3D
-## The beam itself: procedural mesh for the current section, displaced and stress-colored
-## by beam_stress.gdshader from the shared BeamDataTexture. The parent's origin is the
-## bottom fiber at support A, so the neutral axis sits c above it.
+## A prismatic member along local +X: procedural mesh for its section, displaced and
+## stress-colored by beam_stress.gdshader from a BeamDataTexture. The parent's origin is
+## the bottom fiber at x = 0, so the neutral axis sits c above it.
 
 const SHADER: Shader = preload("res://shaders/beam_stress.gdshader")
 
 var _material: ShaderMaterial = ShaderMaterial.new()
 var _section: CrossSection
-var _max_deflection: float = 0.0
-var _exaggeration: float = 1.0
+var _length: float = -1.0
+var _drawn_deflection: float = 0.0
 
 
 func _init(data: BeamDataTexture) -> void:
@@ -19,26 +19,29 @@ func _init(data: BeamDataTexture) -> void:
 	material_override = _material
 
 
-func show_beam(beam: SimplySupportedBeam) -> void:
-	if beam.section != _section:
-		_section = beam.section
-		mesh = BeamMeshBuilder.build(SectionProfile.for_section(_section), beam.length)
-		_material.set_shader_parameter("half_depth", _section.y_max())
-		_material.set_shader_parameter("beam_length", beam.length)
-		position.y = _section.y_max()
-	_max_deflection = beam.max_deflection()
-	_update_deflection_scale()
+## Rebuilds the mesh only when the section or length changes.
+func set_shape(section: CrossSection, length: float) -> void:
+	if section == _section and is_equal_approx(length, _length):
+		return
+	_section = section
+	_length = length
+	mesh = BeamMeshBuilder.build(SectionProfile.for_section(section), length)
+	_material.set_shader_parameter("half_depth", section.y_max())
+	_material.set_shader_parameter("beam_length", length)
+	position.y = section.y_max()
 
 
-func set_exaggeration(factor: float) -> void:
-	_exaggeration = factor
-	_update_deflection_scale()
+## Displacement drawn where the data texture's normalized deflection is 1 [m].
+func set_drawn_deflection(meters: float) -> void:
+	_drawn_deflection = meters
+	_material.set_shader_parameter("deflection_scale", meters)
+
+
+## Hides everything beyond x (shows the left part of a section cut); INF shows it all.
+func set_cut(x: float) -> void:
+	_material.set_shader_parameter("cut_x", x if is_finite(x) else 1.0e6)
 
 
 ## ratio = sigma_max / (stress at full color): 1 for auto range, 1/FS for "relative to yield".
 func set_stress_ratio(ratio: float) -> void:
 	_material.set_shader_parameter("stress_ratio", ratio)
-
-
-func _update_deflection_scale() -> void:
-	_material.set_shader_parameter("deflection_scale", _max_deflection * _exaggeration)

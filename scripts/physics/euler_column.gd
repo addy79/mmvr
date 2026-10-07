@@ -83,6 +83,27 @@ func max_stress() -> float:
 	return load / section.area() * (1.0 + eccentricity * weak_axis_c() / (r * r) / cos(arg))
 
 
+## Lateral deflection [m] at s = x/L under the eccentric load (0 when e = 0).
+## Pinned-pinned: exact secant curve y = e*[tan(kL/2)*sin(kLs) + cos(kLs) - 1], kL = pi*sqrt(P/P_cr).
+## Other end conditions: y_max from the secant formula times the buckling mode shape.
+func lateral_deflection_at(s: float) -> float:
+	var y_max: float = max_deflection()
+	if eccentricity == 0.0 or is_inf(y_max):
+		return 0.0
+	if ends == Ends.PINNED_PINNED:
+		var kl: float = 2.0 * _secant_argument()
+		return eccentricity * (tan(kl / 2.0) * sin(kl * s) + cos(kl * s) - 1.0)
+	return y_max * mode_shape(s)
+
+
+## Axial stress [Pa] on one face (side = +1: the side the load is offset toward, which bends
+## into compression; side = -1: the other face). Compression negative:
+# sigma = -P/A - side*P*(e + y)*c/I_min
+func stress_at(s: float, side: float) -> float:
+	var bending: float = load * (eccentricity + lateral_deflection_at(s)) * weak_axis_c() / min_inertia()
+	return -load / section.area() - side * bending
+
+
 ## First buckling mode at s = x/L (0 at the base), scaled to a peak of 1.
 func mode_shape(s: float) -> float:
 	match ends:

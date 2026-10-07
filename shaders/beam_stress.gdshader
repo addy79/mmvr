@@ -1,4 +1,5 @@
 shader_type spatial;
+render_mode cull_disabled;
 // Beam surface: displaced by the computed deflection curve and colored by the computed
 // bending stress. No mechanics here: the shader only interpolates sampled results.
 
@@ -8,6 +9,7 @@ uniform float deflection_scale = 0.0;   // v_max * exaggeration [m]
 uniform float half_depth = 0.1;         // c [m]
 uniform float beam_length = 4.0;        // L [m]
 uniform float stress_ratio = 1.0;       // sigma_max / color-scale limit
+uniform float cut_x = 1.0e6;            // hide the beam beyond this x [m] (section cut view)
 uniform vec3 tension_color : source_color = vec3(0.85, 0.12, 0.10);
 uniform vec3 compression_color : source_color = vec3(0.10, 0.30, 0.90);
 uniform vec3 neutral_color : source_color = vec3(0.86, 0.86, 0.84);
@@ -34,10 +36,17 @@ void vertex() {
 }
 
 void fragment() {
+	if (data_u * beam_length > cut_x) {
+		discard;
+	}
 	vec3 s = texture(beam_data, row0(data_u)).rgb;
 	// Stress varies linearly through the depth between the two fiber values.
 	float t = clamp(mix(s.b, s.g, depth_t) * stress_ratio, -1.0, 1.0);
 	vec3 extreme = t > 0.0 ? tension_color : compression_color;
 	ALBEDO = mix(neutral_color, extreme, abs(t));
+	if (!FRONT_FACING) {
+		ALBEDO *= 0.6;  // inside surfaces seen through an open cut
+		NORMAL = -NORMAL;
+	}
 	ROUGHNESS = 0.6;
 }

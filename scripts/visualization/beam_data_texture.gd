@@ -17,9 +17,9 @@ func _init() -> void:
 	texture = ImageTexture.create_from_image(_image)
 
 
-func write(beam: SimplySupportedBeam) -> void:
+func write(beam: BeamModel) -> void:
 	var c: float = beam.section.y_max()
-	var v_ref: float = beam.max_deflection()
+	var v_ref: float = absf(beam.max_deflection())
 	var sigma_ref: float = beam.max_bending_stress()
 	var shear_ref: float = beam.max_shear()
 	var moment_ref: float = absf(beam.max_moment())
@@ -32,6 +32,23 @@ func write(beam: SimplySupportedBeam) -> void:
 		_image.set_pixel(i, 1, Color(
 				_ratio(beam.shear_at(x), shear_ref),
 				_ratio(beam.moment_at(x), moment_ref), 0.0))
+	texture.update(_image)
+
+
+## Column: lateral deflection and the two face stresses (compression negative) along the
+## column, read from the EulerColumn model at s = x/L.
+func write_column(column: EulerColumn) -> void:
+	var v_ref: float = 0.0
+	var sigma_ref: float = 0.0
+	for i: int in SAMPLES:
+		var s: float = float(i) / (SAMPLES - 1)
+		v_ref = maxf(v_ref, absf(column.lateral_deflection_at(s)))
+		sigma_ref = maxf(sigma_ref, maxf(absf(column.stress_at(s, 1.0)), absf(column.stress_at(s, -1.0))))
+	for i: int in SAMPLES:
+		var s: float = float(i) / (SAMPLES - 1)
+		_image.set_pixel(i, 0, Color(_ratio(column.lateral_deflection_at(s), v_ref),
+				_ratio(column.stress_at(s, 1.0), sigma_ref), _ratio(column.stress_at(s, -1.0), sigma_ref)))
+		_image.set_pixel(i, 1, Color(0.0, 0.0, 0.0))
 	texture.update(_image)
 
 

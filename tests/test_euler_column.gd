@@ -44,3 +44,15 @@ func test_mode_shapes() -> void:
 		assert_almost_eq(peak, 1.0, 1e-3, "peak 1, ends %d" % ends)
 	c.ends = EulerColumn.Ends.FIXED_PINNED
 	assert_almost_eq(c.mode_shape(1.0), 0.0, 1e-4, "pinned top")
+
+
+# Pinned-pinned eccentric column: the exact curve peaks at midheight with the secant
+# y_max = 1.7391 mm, and the concave face carries sigma_max = -18.087 MPa there.
+func test_deflected_shape_and_face_stress() -> void:
+	var c := EulerColumn.new()
+	c.eccentricity = 0.005
+	assert_within_1pct(c.lateral_deflection_at(0.5), 1.7391e-3, "y(L/2)")
+	assert_almost_eq(c.lateral_deflection_at(0.0), 0.0, 1e-9, "y(0)")
+	assert_within_1pct(c.stress_at(0.5, 1.0), -18.087e6, "concave face")
+	c.ends = EulerColumn.Ends.FIXED_FREE
+	assert_within_1pct(c.lateral_deflection_at(1.0), c.max_deflection(), "free top deflects most")

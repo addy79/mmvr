@@ -37,3 +37,13 @@ func test_brittle_curve() -> void:
 	var curve := StressStrainCurve.new(LabMaterial.wood())
 	assert_within_1pct(curve.stress_at(0.005), 65.0e6, "linear")
 	assert_eq(curve.stress_at(0.008), 0.0, "fractured")
+
+
+# Elastic: d/d0 = 1 - 0.3*0.001 = 0.9997. Plastic at eps = 0.21: 1/sqrt(1.21) = 0.9091.
+# Neck halfway between eps_u = 0.20 and eps_f = 0.30: 0.35*0.5 = 0.175.
+func test_specimen_shape() -> void:
+	var curve := StressStrainCurve.new(LabMaterial.steel())
+	assert_within_1pct(curve.diameter_ratio(0.001), 0.9997, "Poisson")
+	assert_within_1pct(curve.diameter_ratio(0.21), 0.90909, "constant volume")
+	assert_eq(curve.neck_reduction(0.1), 0.0, "no neck before sigma_U")
+	assert_within_1pct(curve.neck_reduction(0.25), 0.175, "neck")
