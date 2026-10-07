@@ -5,7 +5,8 @@ extends Station
 
 const LENGTH: float = 4.0
 const ORIGIN := Vector3(-2.0, 0.95, 0.0)
-const SUPPORT_NAMES: PackedStringArray = ["Simply supported", "Cantilever"]
+const SUPPORT_NAMES: PackedStringArray = ["Simply supported", "Cantilever", "Propped cantilever"]
+const INDETERMINATE: int = 5
 const SECTION_NAMES: PackedStringArray = ["Rectangle", "Circle", "Tube", "I-beam", "Box"]
 const MATERIAL_NAMES: PackedStringArray = ["Steel", "Aluminum", "Wood"]
 const LIMIT_RATIO: float = 360.0   ## serviceability limit L/360
@@ -16,6 +17,7 @@ var _sections: Array[CrossSection] = SectionPresets.all()
 var _materials: Array[LabMaterial] = LabMaterial.presets()
 var _simple: SimplySupportedBeam
 var _cantilever: CantileverBeam
+var _propped: ProppedCantileverBeam
 var _rig: BeamRig = BeamRig.new(LENGTH, ORIGIN.y)
 var _max_marker: MeshInstance3D = MeshInstance3D.new()
 var _max_label: Label3D = Text3D.make(36)
@@ -27,6 +29,7 @@ func _init() -> void:
 	title = "Deflection of beams"
 	_simple = SimplySupportedBeam.new(LENGTH, 10.0e3, 2.0, _sections[0], _materials[0])
 	_cantilever = CantileverBeam.new(LENGTH, 10.0e3, 2.0, _sections[0], _materials[0])
+	_propped = ProppedCantileverBeam.new(LENGTH, 10.0e3, 2.0, _sections[0], _materials[0])
 	_controls = [
 		ControlSpec.choice(&"support", "Supports", SUPPORT_NAMES, 0),
 		ControlSpec.slider(&"P", "Point load P", "kN", Units.KN, 0.0, 50.0, 0.5, 10.0e3),
@@ -61,7 +64,7 @@ func _init() -> void:
 
 
 func _apply() -> void:
-	beam = _cantilever if value(&"support") == 1.0 else _simple
+	beam = [_simple, _cantilever, _propped][int(value(&"support"))]
 	beam.load = value(&"P")
 	beam.load_position = value(&"a")
 	beam.distributed_load = value(&"w")
@@ -73,14 +76,15 @@ func _apply() -> void:
 	_max_marker.position = Vector3(xm, _rig.axis_at(xm) - beam.section.y_max() - 0.05, 0.12)
 	_max_label.text = "v_max = " + Units.small_length(beam.max_deflection())
 	_max_label.position = _max_marker.position + Vector3(0.0, -0.18, 0.0)
-	var x_slope: float = 0.0 if beam is SimplySupportedBeam else LENGTH
+	var x_slope: float = 0.0 if beam is SimplySupportedBeam else LENGTH  # a free or roller end
 	var drawn_slope: float = beam.slope_at(x_slope) * _rig.deflection_scale
 	_tangent.position = Vector3(x_slope + (0.4 if x_slope == 0.0 else -0.4), _rig.axis_at(x_slope) - drawn_slope * (0.4 if x_slope == 0.0 else -0.4), 0.15)
 	_tangent.rotation.z = -atan(drawn_slope)
 
 
 func step_titles() -> PackedStringArray:
-	return ["Curvature", "Integration & BCs", "Support conditions", "Superposition", "Design for stiffness"]
+	return ["Curvature", "Integration & BCs", "Support conditions", "Superposition", "Design for stiffness",
+			"Statically indeterminate"]
 
 
 func lesson_text() -> String:
@@ -105,7 +109,12 @@ func lesson_text() -> String:
 				t += "Simply supported: v(0) = 0 and v(L) = 0 (the supports do not move; the beam may rotate there).\n"
 			t += F.equation("slope at %s" % ("the free end" if cant else "A"), "", Units.angle(beam.slope_at(LENGTH if cant else 0.0)))
 			t += F.equation("v_max", "at x = %s" % Units.length(beam.max_deflection_position()), Units.small_length(beam.max_deflection()))
-			t += F.note("Where a point load sits, M has a corner; v and θ stay continuous there (two more conditions for the piecewise integration).")
+			t += F.note("Where a point load sits, M has a corner; v and θ stay continuous there. With singularity functions (⟨x − a⟩ⁿ) one expression covers the whole beam and these continuity conditions are automatic.")
+			var ma: Vector2 = beam.moment_area(0.0, LENGTH)
+			t += "[b]Moment-area theorems[/b] read the same results directly from the M/EI diagram:\n"
+			t += F.equation("θ_A − θ_B = ∫ M/EI dx", "area of the M/EI diagram from A to B", Units.angle(ma.x))
+			t += F.equation("check: θ(0) − θ(L)", "", Units.angle(beam.slope_at(0.0) - beam.slope_at(LENGTH)))
+			t += F.equation("t_B/A = ∫ (x_B − x)·M/EI dx", "deviation of B from the tangent at A", Units.small_length(ma.y))
 			t += F.try_this("compare the three stacked plots: each is the integral of the one above it.")
 		2:
 			var p: String = Units.force(beam.load)
@@ -136,13 +145,37 @@ func lesson_text() -> String:
 			t += F.equation("I_req = I·v_max/v_allow", "", Units.inertia(beam.required_inertia(limit)))
 			t += F.equation("I (current)", SectionText.describe(beam.section), Units.inertia(beam.section.moment_of_inertia()))
 			t += F.try_this("find the lightest section that passes. Changing material helps less than you might think: E of steel is only 3× aluminum's.")
+		INDETERMINATE:
+			var pr := _propped
+			pr.load = beam.load
+			pr.load_position = beam.load_position
+			pr.distributed_load = beam.distributed_load
+			pr.section = beam.section
+			pr.material = beam.material
+			var released := CantileverBeam.new(LENGTH, beam.load, beam.load_position, beam.section, beam.material)
+			released.distributed_load = beam.distributed_load
+			t += "Add a roller under the free end of a cantilever: four reactions (R_A, M_A, R_B and a horizontal one) but only three equilibrium equations — the [b]propped cantilever[/b] is statically indeterminate to the first degree.\n"
+			t += "[b]Method of superposition[/b]: remove the roller (the redundant R_B), compute the end deflection of the released cantilever under the loads, then find the R_B that pushes the end back to zero:\n"
+			t += F.equation("v_B (loads, no roller)", "", Units.small_length(released.deflection_at(LENGTH)))
+			t += F.equation("compatibility: v_B − R_B·L³/(3EI) = 0", "")
+			t += F.equation("R_B = 3EI·v_B/L³", "", Units.force(pr.reaction_b()))
+			t += F.equation("R_A = P + wL − R_B", "", Units.force(pr.reaction_a()))
+			t += F.equation("M_A", "", Units.moment(pr.fixed_end_moment()))
+			t += F.equation("v_max", "at x = %s" % Units.length(pr.max_deflection_position()), Units.small_length(pr.max_deflection()))
+			t += F.note("Check (uniform load only): R_B = 3wL/8, M_A = −wL²/8, v_max = wL⁴/(185EI). Indeterminate beams are stiffer and their moments are spread more evenly — but supports that settle change the reactions.")
+			t += F.try_this("select 'Propped cantilever' in Supports and compare v_max with the cantilever under the same loads.")
 	return t
 
 
 ## Same support and section as the current beam, with other loads (for superposition).
 func _copy(p: float, w: float) -> BeamModel:
-	var b: BeamModel = CantileverBeam.new(LENGTH, p, beam.load_position, beam.section, beam.material) if beam is CantileverBeam \
-			else SimplySupportedBeam.new(LENGTH, p, beam.load_position, beam.section, beam.material)
+	var b: BeamModel
+	if beam is ProppedCantileverBeam:
+		b = ProppedCantileverBeam.new(LENGTH, p, beam.load_position, beam.section, beam.material)
+	elif beam is CantileverBeam:
+		b = CantileverBeam.new(LENGTH, p, beam.load_position, beam.section, beam.material)
+	else:
+		b = SimplySupportedBeam.new(LENGTH, p, beam.load_position, beam.section, beam.material)
 	b.distributed_load = w
 	return b
 

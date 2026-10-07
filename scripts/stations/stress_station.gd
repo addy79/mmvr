@@ -208,6 +208,7 @@ func lesson_text() -> String:
 		3:
 			var theta: float = model.plane_angle
 			t += "Stress depends on the plane you look at. Cut the rod along a plane whose normal makes an angle θ with the axis (cyan ellipse). The same force P now has a component normal to the plane and one along it, acting on a larger area A/cos θ.\n"
+			t += F.derivation("The cut has area A_θ = A/cos θ. The force P splits into F = P·cos θ normal to the cut and V = P·sin θ along it, so σ_θ = F/A_θ = (P/A)cos²θ and τ_θ = V/A_θ = (P/A)sin θ·cos θ.")
 			t += F.equation("σ_θ = (P/A)·cos²θ", "%s × cos²(%s)" % [Units.stress(model.normal_stress()), Units.angle(theta)], Units.stress(model.oblique_normal_stress()))
 			t += F.equation("τ_θ = (P/A)·sin θ·cos θ", "", Units.stress(model.oblique_shear_stress()))
 			t += "The normal stress is largest at θ = 0 (σ_max = P/A); the shear stress is largest at θ = 45°: τ_max = P/(2A) = %s.\n" % Units.stress(model.normal_stress() / 2.0)

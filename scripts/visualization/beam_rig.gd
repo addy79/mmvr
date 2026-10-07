@@ -49,11 +49,14 @@ func show_beam(beam: BeamModel, exaggeration: float, full_color_at_yield: bool) 
 	_beam = beam
 	var length: float = beam.length
 	var c: float = beam.section.y_max()
-	var cantilever: bool = beam is CantileverBeam
-	var kind: String = ("fixed%.3f" % c) if cantilever else ("simple%.2f" % length)
+	var propped: bool = beam is ProppedCantileverBeam
+	var cantilever: bool = beam is CantileverBeam or propped
+	var kind: String = "%s %.3f %.2f" % ["propped" if propped else ("fixed" if cantilever else "simple"), c, length]
 	if kind != _supports_kind:
 		_supports_kind = kind
-		if cantilever:
+		if propped:
+			_supports.show_propped(length, 2.0 * c)
+		elif cantilever:
 			_supports.show_fixed(2.0 * c)
 		else:
 			_supports.show_simple(length)
@@ -87,7 +90,7 @@ func show_beam(beam: BeamModel, exaggeration: float, full_color_at_yield: bool) 
 	for i: int in 2:
 		var r_len: float = 0.15 + 0.35 * minf(absf(values[i]) / 50.0e3, 1.0)
 		var at := Vector3(length * i, -0.02, 0.3)
-		if cantilever:
+		if cantilever and i == 0:
 			at = Vector3(0.12, -0.02, 0.3)
 		_reactions[i].place_onto(at, Vector3(0.0, r_len, 0.0))
 		_reactions[i].visible = values[i] > 0.0
@@ -95,7 +98,7 @@ func show_beam(beam: BeamModel, exaggeration: float, full_color_at_yield: bool) 
 		_reactions[i].label.position = at + Vector3(0.0, -r_len - 0.12, 0.0)
 	_fixed_moment.visible = cantilever
 	if cantilever:
-		var m_a: float = (beam as CantileverBeam).fixed_end_moment()
+		var m_a: float = beam.moment_at(0.0)
 		_fixed_moment.position = Vector3(0.05, c, 0.32)
 		_fixed_moment.set_moment(-signf(m_a))  # reaction couple on the beam opposes the hogging moment
 		_fixed_moment.label.text = "M_A = " + Units.moment(absf(m_a))

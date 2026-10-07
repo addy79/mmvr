@@ -116,7 +116,8 @@ func _apply() -> void:
 
 
 func step_titles() -> PackedStringArray:
-	return ["Stability", "Euler's formula", "End conditions", "Slenderness", "Eccentric load", "Design check"]
+	return ["Stability", "Euler's formula", "End conditions", "Slenderness", "Eccentric load", "Design check",
+			"Design formulas (AISC)"]
 
 
 func lesson_text() -> String:
@@ -132,6 +133,7 @@ func lesson_text() -> String:
 			t += F.try_this("raise P slowly. At P_cr the column snaps into its buckled shape. Add a small eccentricity e: it bows earlier and gradually instead.")
 		1:
 			t += "For an ideal straight column pinned at both ends, the deflected shape must satisfy EI·v'' = −P·v. Non-zero solutions exist only for particular loads; the smallest is [b]Euler's formula[/b]:\n"
+			t += F.derivation("With v the sideways deflection, the moment is M = P·v, so EI·v'' + P·v = 0, i.e. v'' + k²v = 0 with k² = P/(EI). Solution v = A·sin kx + B·cos kx; v(0) = 0 gives B = 0, v(L) = 0 gives A·sin kL = 0. A bent shape (A ≠ 0) needs kL = nπ: P = n²π²EI/L², smallest for n = 1.")
 			t += F.equation("P_cr = π²·E·I/L_e²", "π² × %s × %s / (%s)²" % [Units.modulus(column.material.youngs_modulus), Units.inertia(column.min_inertia()), Units.length(column.effective_length())], pcr)
 			t += "I is the [b]smallest[/b] moment of inertia of the section: the column buckles about its weak axis. P_cr does not depend on the strength of the material, only on its stiffness E.\n"
 			t += F.try_this("double L: P_cr drops to a quarter. Switch steel → aluminum: P_cr drops to about a third.")
@@ -169,6 +171,19 @@ func lesson_text() -> String:
 			t += F.equation("σ_max ≤ σ_Y", "%s vs %s" % [Units.stress(column.max_stress()) if is_finite(column.max_stress()) else "∞", Units.stress(sy)], F.ok_or_fail(crush_ok, "OK" if crush_ok else "yields"))
 			t += "Typical codes ask for FS ≈ 2 against buckling → %s\n" % F.ok_or_fail(fs >= 2.0, "adequate" if fs >= 2.0 else "not enough")
 			t += F.try_this("carry 300 kN over 4 m with FS ≥ 2: which section and end conditions do it with the least material?")
+		6:
+			var lr: float = column.slenderness()
+			var limit: float = 4.71 * sqrt(column.material.youngs_modulus / column.material.yield_strength)
+			var p_all: float = column.aisc_allowable_load()
+			t += "Real columns are never perfectly straight or centrally loaded, and steel sections contain residual stresses from rolling. Design codes therefore use [b]empirical column curves[/b] fitted to tests. The AISC specification (structural steel):\n"
+			t += F.equation("σ_e = π²E/(L_e/r)²", "Euler stress", Units.stress(column.critical_stress()))
+			t += F.equation("L_e/r ≤ 4.71√(E/σ_Y) = %.0f:  σ_cr = 0.658^(σ_Y/σ_e)·σ_Y" % limit, "inelastic buckling")
+			t += F.equation("L_e/r > %.0f:  σ_cr = 0.877·σ_e" % limit, "elastic buckling, reduced for crookedness")
+			t += F.equation("this column: L_e/r = %.0f" % lr, "", Units.stress(column.aisc_critical_stress()))
+			t += F.equation("P_all = σ_cr·A/1.67", "allowable-stress design", Units.force(p_all))
+			t += "Applied P = %s → %s\n" % [Units.force(column.load), F.ok_or_fail(column.load <= p_all, "OK" if column.load <= p_all else "not allowed")]
+			t += F.note("The curve (figure) joins the yield strength for short columns to the Euler hyperbola for slender ones. Aluminum and timber have their own design formulas (Aluminum Association, NDS); the AISC formula is for structural steel.")
+			t += F.try_this("shorten the column from 6 m to 1 m and watch it move from the elastic to the inelastic branch.")
 	return t
 
 
@@ -228,6 +243,22 @@ func fill_figures(figures: FigureArea) -> void:
 			p.line(pts, Color(0.6, 0.8, 1.0), 3.0)
 			p.hline(sy, Color(1.0, 0.4, 0.4), "σ_Y")
 			p.marker(Vector2(column.slenderness(), minf(column.critical_stress() * Units.MPA, sy * 1.6)), Color(1, 1, 1), "this column")
+		6:
+			var p := figures.plot(0)
+			var sy: float = column.material.yield_strength * Units.MPA
+			p.begin("AISC column curve vs Euler", "L_e/r", "σ (MPa)")
+			var probe := _probe()
+			var euler := PackedVector2Array()
+			var aisc := PackedVector2Array()
+			for i: int in 101:
+				var lr: float = 10.0 + 290.0 * i / 100.0
+				probe.length = lr * probe.radius_of_gyration() / EulerColumn.K_FACTORS[probe.ends]
+				euler.append(Vector2(probe.slenderness(), minf(probe.critical_stress() * Units.MPA, sy * 1.5)))
+				aisc.append(Vector2(probe.slenderness(), probe.aisc_critical_stress() * Units.MPA))
+			p.line(euler, Color(0.6, 0.8, 1.0), 2.0)
+			p.line(aisc, Color(1.0, 0.7, 0.3), 3.0)
+			p.hline(sy, Color(1.0, 0.4, 0.4), "σ_Y")
+			p.marker(Vector2(column.slenderness(), column.aisc_critical_stress() * Units.MPA), Color(1, 1, 1), "this column")
 		5:
 			var p := figures.plot(0)
 			p.begin("Load vs the two limits", "", "P (kN)")

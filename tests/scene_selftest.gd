@@ -82,10 +82,13 @@ func _station_checks(station: Station) -> void:
 			_expect(station, 7, {&"sx": 80.0e6, &"sy": -200.0e6, &"txy": 0.0, &"material": 2.0}, "Mohr's criterion", "ch7: brittle criteria shown")
 		8:
 			_expect(station, 2, {}, "103.52 MPa", "ch8: bending stress at the top point")
+			_expect(station, 5, {}, "c_min", "ch8: shaft design shown")
 		9:
 			_expect(station, 1, {&"support": 1.0, &"w": 0.0, &"a": 4.0}, "23.82 mm", "ch9: cantilever PL³/3EI")
+			_expect(station, 5, {&"support": 2.0, &"P": 0.0, &"w": 5.0e3}, "7.50 kN", "ch9: propped R_B = 3wL/8")
 		10:
 			_expect(station, 1, {}, "228.46 kN", "ch10: Euler load")
+			_expect(station, 6, {&"P": 50.0e3}, "119.98 kN", "ch10: AISC allowable load")
 			_expect(station, 0, {&"P": 300.0e3}, "buckled", "ch10: buckles above P_cr")
 			await _shot("ch10_buckled.png")
 

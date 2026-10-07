@@ -19,16 +19,19 @@ every equation, and 2D figures (diagrams, σ-ε curve, Mohr's circle...).
 
 | Ch. | Bench | Steps |
 |---|---|---|
-| 1 | Rod, pin and clevis | normal stress, pin shear (single/double), bearing, oblique plane, allowable load |
-| 2 | Tension test + bench bar | σ-ε diagram, Hooke's law & resilience, yield to fracture, unloading, PL/AE, Poisson, thermal stress |
-| 3 | Shaft in a wall with a lever | deformation, τ = Tρ/J, φ = TL/JG, hollow shafts, power & design |
-| 4 | Segment under end couples | plane sections, ε = −y/ρ, flexure formula, 1/ρ = M/EI, section modulus & M_Y |
-| 5 | Simply supported beam | free body & reactions, section cut V/M, bending stress, shear stress, stress at a point, deflection, design |
-| 6 | Section seen end-on + planks | why horizontal shear, Q, τ = VQ/It, shear flow & nail spacing, I-beam web |
-| 7 | Rotatable stress element | plane stress, transformation equations, principal stresses, max shear, Mohr's circle, yield criteria |
-| 8 | Sign-post pipe | internal forces, stress from each load, element at a point, principal stresses, von Mises/Tresca |
-| 9 | Cantilever or simply supported | curvature, integration & BCs, support conditions, superposition, stiffness design |
-| 10 | Column | stability, Euler, end conditions & K, slenderness, secant formula, design |
+| 1 | Rod, pin and clevis | normal stress, pin shear (single/double), bearing, oblique plane, design (ASD, LRFD note) |
+| 2 | Tension test + bench bar | σ-ε diagram, Hooke's law & resilience, yield to fracture, unloading, PL/AE (Saint-Venant, stress concentration), Poisson, thermal stress, generalized Hooke's law (dilatation, bulk modulus), statically indeterminate bars |
+| 3 | Shaft in a wall with a lever | deformation, τ = Tρ/J (derivation), φ = TL/JG, hollow shafts, power & design, statically indeterminate shafts, thin-walled hollow shafts |
+| 4 | Segment under end couples | plane sections, ε = −y/ρ, flexure formula (derivation), 1/ρ = M/EI, section modulus, plastic bending (M_p, shape factor, M-κ), eccentric axial load (kern), composite sections (transformed section) |
+| 5 | Simply supported beam | free body, V and M with singularity functions, dV/dx and dM/dx (derivation, area method), bending stress, shear stress, stress at a point, deflection, design and section selection |
+| 6 | Section seen end-on + planks | why horizontal shear, Q, τ = VQ/It (derivation), shear flow & fasteners, I-beam web and flange shear flow, shear center |
+| 7 | Rotatable element, tank, rosette | plane stress, transformation (derivation), principal stresses, max shear, Mohr's circle, yield criteria, 3D Mohr circles, brittle criteria (Rankine, Mohr; cast iron), pressure vessels, strain rosettes |
+| 8 | Sign-post pipe | internal forces, stress from each load, element at a point, principal stresses, von Mises/Tresca, transmission shaft design |
+| 9 | Simply supported, cantilever or propped | curvature, integration & BCs, moment-area theorems, support conditions, superposition, stiffness design, statically indeterminate beams |
+| 10 | Column | stability, Euler (derivation), end conditions, slenderness, secant formula, design check, AISC column formulas |
+
+Cross-sections: rectangle, circle, tube, W200×46.1 I-beam and a 100×200×10 box (HSS).
+Materials: A36 steel, 6061-T6 aluminum, Douglas fir, and gray cast iron (chapter 7).
 
 ### Desktop controls
 Keys are by position, so on an AZERTY keyboard "W A S D" are the keys printed Z Q S D
@@ -62,10 +65,11 @@ The app also shows up on the headset under Library → Unknown sources → MMLab
 
 ## Tests
 ```bash
-./run_tests.sh                          # GUT unit tests of all physics, headless
+./run_tests.sh                          # GUT unit tests of all physics (79 tests), headless
 ./run_tests.sh -gselect=test_euler      # only scripts whose name contains "test_euler"
 godot --path . -- --selftest            # windowed: every chapter and step + numeric checks + screenshots
 godot --path . -- --selftest --3d-shots # also saves a panel-free 3D view of every step
+godot --path . -- --selftest --chapter 7 # only one chapter
 godot --path . -- --xr-preview --selftest   # the VR layout, seen from the headset start pose
 ```
 The self-test's exit code is the number of failed checks. Errors you can ignore on a PC:

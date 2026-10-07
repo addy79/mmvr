@@ -44,6 +44,20 @@ func show_fixed(depth: float) -> void:
 	_add(wall, Vector3(-0.15, (depth + 0.6 - _height) / 2.0, 0.0))
 
 
+## Wall at x = 0 and a roller at x = L on a pedestal (propped cantilever).
+func show_propped(length: float, depth: float) -> void:
+	show_fixed(depth)
+	var cylinder := CylinderMesh.new()
+	cylinder.top_radius = SIZE / 2.0
+	cylinder.bottom_radius = SIZE / 2.0
+	cylinder.height = 0.3
+	_add(cylinder, Vector3(length, -SIZE / 2.0, 0.0)).rotation.x = PI / 2.0
+	var top: float = -SIZE - BASE_THICKNESS
+	var pedestal := BoxMesh.new()
+	pedestal.size = Vector3(0.22, _height + top, 0.3)
+	_add(pedestal, Vector3(length, top - (_height + top) / 2.0, 0.0))
+
+
 func _clear() -> void:
 	for child: Node in get_children():
 		child.queue_free()

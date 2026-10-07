@@ -39,7 +39,7 @@ func _init() -> void:
 		ControlSpec.slider(&"wall", "Wall thickness", "mm", Units.MM, 3.0, 30.0, 0.5, 0.01, 1),
 		ControlSpec.choice(&"point", "Point on the section", POINT_NAMES, 0).only_in([2, 3, 4]),
 		ControlSpec.choice(&"orientation", "Element drawn", PackedStringArray(["x-s axes", "principal"]), 0).only_in([2, 3]),
-		ControlSpec.choice(&"material", "Material", MATERIAL_NAMES, 0).only_in([4]),
+		ControlSpec.choice(&"material", "Material", MATERIAL_NAMES, 0).only_in([4, 5]),
 	]
 	var wall := MeshInstance3D.new()
 	var wall_mesh := BoxMesh.new()
@@ -152,7 +152,8 @@ func set_step(index: int) -> void:
 
 
 func step_titles() -> PackedStringArray:
-	return ["Internal forces", "Stress from each load", "Stress at a point", "Principal stresses", "Is it safe?"]
+	return ["Internal forces", "Stress from each load", "Stress at a point", "Principal stresses", "Is it safe?",
+			"Transmission shaft design"]
 
 
 func lesson_text() -> String:
@@ -207,6 +208,17 @@ func lesson_text() -> String:
 			var worst_fs: float = model.stress_state(worst as CombinedLoading.Point).von_mises_safety(sy)
 			t += "The most critical point is %s with σ_vm = %s → FS = %s.\n" % [F.value(POINT_NAMES[worst]), Units.stress(worst_vm), F.ok_or_fail(worst_fs >= 1.5, Units.factor(worst_fs))]
 			t += F.try_this("make the wall thinner until FS < 1.5. Which point fails first, and why?")
+		5:
+			var tau_all: float = model.material.yield_strength / 2.0 / 2.0
+			var m: float = model.bending_moment()
+			t += "A rotating shaft carrying gears or pulleys is bent and twisted at the same time. At the critical section the top fiber feels σ = Mc/I and τ = Tc/J. With J = 2I, the maximum shear stress from Mohr's circle combines them neatly:\n"
+			t += F.derivation("τ_max = √((σ/2)² + τ²) = √((Mc/2I)² + (Tc/J)²) = (c/J)·√(M² + T²).")
+			t += F.equation("τ_max = (c/J)·√(M² + T²)", "M = %s, T = %s" % [Units.moment(m), Units.moment(absf(model.torque))], "")
+			t += "Design with the maximum-shear-stress criterion, τ_all = σ_Y/(2·FS) = %s for FS = 2. For a solid shaft J/c = πc³/2:\n" % Units.stress(tau_all)
+			t += F.equation("c_min = (2·√(M² + T²)/(π·τ_all))^(1/3)", "", Units.small_length(model.design_radius(tau_all)))
+			t += F.equation("d_min = 2·c_min", "", Units.small_length(2.0 * model.design_radius(tau_all)))
+			t += F.note("Shafts also see fatigue (the bending stress reverses every turn) and stress concentrations at keyways and shoulders; machine-design courses add those factors.")
+			t += F.try_this("set T = 0 or P = 0: the formula reduces to the pure bending or pure torsion design.")
 	return t
 
 
