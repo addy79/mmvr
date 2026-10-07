@@ -16,6 +16,7 @@ var behavior: Behavior
 var hardening_strain: float    ## end of the yield plateau, eps_sh
 var ultimate_strain: float     ## strain at sigma_U (necking starts), eps_u
 var fracture_strain: float     ## eps_f
+var ultimate_compressive_strength: float  ## sigma_UC [Pa] (brittle materials are stronger in compression)
 
 
 func _init(p_name: String, e: float, sigma_y: float, sigma_u: float, nu: float, alpha: float,
@@ -30,6 +31,7 @@ func _init(p_name: String, e: float, sigma_y: float, sigma_u: float, nu: float, 
 	hardening_strain = eps_sh
 	ultimate_strain = eps_u
 	fracture_strain = eps_f
+	ultimate_compressive_strength = sigma_u
 
 
 # G = E / (2(1 + nu)), isotropic materials
@@ -52,6 +54,14 @@ static func steel() -> LabMaterial:
 static func aluminum() -> LabMaterial:
 	return LabMaterial.new("Aluminum (6061-T6)", 70.0e9, 240.0e6, 260.0e6, 0.33, 23.6e-6,
 			Behavior.GRADUAL_YIELD, 0.0, 0.08, 0.17)
+
+
+## Gray cast iron: brittle, much stronger in compression than in tension.
+static func cast_iron() -> LabMaterial:
+	var m := LabMaterial.new("Gray cast iron", 69.0e9, 170.0e6, 170.0e6, 0.25, 12.1e-6,
+			Behavior.BRITTLE, 0.0, 0.0, 170.0e6 / 69.0e9)
+	m.ultimate_compressive_strength = 655.0e6
+	return m
 
 
 ## Douglas fir along the grain, idealized as isotropic. yield_strength holds an allowable

@@ -109,6 +109,32 @@ func factor_of_safety() -> float:
 	return material.yield_strength / sigma if sigma > 0.0 else INF
 
 
+# Area method: M(x1) - M(x0) = integral of V dx from x0 to x1 (midpoint rule)
+func shear_area(x0: float, x1: float) -> float:
+	const STEPS: int = 2000
+	var h: float = (x1 - x0) / STEPS
+	var total: float = 0.0
+	for i: int in STEPS:
+		total += shear_at(x0 + (i + 0.5) * h) * h
+	return total
+
+
+## Moment-area theorems between x0 and x1 (midpoint rule), with the curvature M/EI:
+##   x = integral of M/EI dx            (first theorem:  theta(x1) - theta(x0) = -x, v downward)
+##   y = integral of (x1 - x)*M/EI dx  (second theorem: tangential deviation of x1 from the tangent at x0)
+func moment_area(x0: float, x1: float) -> Vector2:
+	const STEPS: int = 2000
+	var h: float = (x1 - x0) / STEPS
+	var area: float = 0.0
+	var first: float = 0.0
+	for i: int in STEPS:
+		var x: float = x0 + (i + 0.5) * h
+		var k: float = curvature_at(x) * h
+		area += k
+		first += (x1 - x) * k
+	return Vector2(area, first)
+
+
 # Strength design: S_min = |M|max/sigma_all
 func required_section_modulus(allowable_stress: float) -> float:
 	return absf(max_moment()) / allowable_stress

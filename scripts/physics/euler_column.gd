@@ -66,6 +66,23 @@ func squash_load() -> float:
 	return material.yield_strength * section.area()
 
 
+## AISC (ASD) column design for structural steel:
+##   sigma_e = pi^2*E/(L_e/r)^2
+##   L_e/r <= 4.71*sqrt(E/sigma_Y): sigma_cr = 0.658^(sigma_Y/sigma_e) * sigma_Y  (inelastic)
+##   otherwise:                     sigma_cr = 0.877*sigma_e                        (elastic)
+##   allowable sigma_all = sigma_cr/1.67
+func aisc_critical_stress() -> float:
+	var sigma_e: float = critical_stress()
+	var sy: float = material.yield_strength
+	if slenderness() <= 4.71 * sqrt(material.youngs_modulus / sy):
+		return pow(0.658, sy / sigma_e) * sy
+	return 0.877 * sigma_e
+
+
+func aisc_allowable_load() -> float:
+	return aisc_critical_stress() / 1.67 * section.area()
+
+
 # FS against buckling = P_cr/P
 func buckling_safety() -> float:
 	return critical_load() / load if load > 0.0 else INF

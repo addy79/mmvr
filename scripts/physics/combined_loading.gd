@@ -71,6 +71,13 @@ func shear_stress(point: Point) -> float:
 	return torsion_shear()
 
 
+# Design of a solid transmission shaft under M and T: tau_max = (c/J)*sqrt(M^2 + T^2) with
+# J/c = pi*c^3/2, so c_min = (2*sqrt(M^2 + T^2)/(pi*tau_all))^(1/3)
+func design_radius(tau_all: float) -> float:
+	var m: float = bending_moment()
+	return pow(2.0 * sqrt(m * m + torque * torque) / (PI * tau_all), 1.0 / 3.0)
+
+
 ## Stress element at the point: x along the pipe axis, y around the circumference.
 func stress_state(point: Point) -> PlaneStress:
 	return PlaneStress.new(normal_stress(point), 0.0, shear_stress(point))

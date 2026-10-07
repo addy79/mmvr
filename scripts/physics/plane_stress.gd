@@ -92,6 +92,28 @@ static func tresca_boundary(yield_strength: float) -> PackedVector2Array:
 			Vector2(-s, -s), Vector2(0, -s), Vector2(s, 0)])
 
 
+# Brittle, maximum-normal-stress (Rankine) criterion: FS = min(sigma_UT/sigma_1, sigma_UC/|sigma_2|)
+# over the principal stresses that are in tension / compression
+func max_normal_safety(ultimate_tension: float, ultimate_compression: float) -> float:
+	var fs: float = INF
+	for s: float in [principal_1(), principal_2(), 0.0]:
+		if s > 0.0:
+			fs = minf(fs, ultimate_tension / s)
+		elif s < 0.0:
+			fs = minf(fs, ultimate_compression / -s)
+	return fs
+
+
+# Brittle, Mohr's criterion: with principal stresses of opposite sign,
+# sigma_1/sigma_UT - sigma_2/sigma_UC = 1/FS; with the same sign it reduces to Rankine
+func mohr_safety(ultimate_tension: float, ultimate_compression: float) -> float:
+	var s1: float = principal_1()
+	var s2: float = principal_2()
+	if s1 > 0.0 and s2 < 0.0:
+		return 1.0 / (s1 / ultimate_tension - s2 / ultimate_compression)
+	return max_normal_safety(ultimate_tension, ultimate_compression)
+
+
 # Maximum-distortion-energy criterion: FS = sigma_Y/sigma_vm
 func von_mises_safety(yield_strength: float) -> float:
 	var vm: float = von_mises()

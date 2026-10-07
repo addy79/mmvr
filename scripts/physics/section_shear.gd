@@ -50,6 +50,15 @@ func web_average_stress() -> float:
 	return shear_force / (s.d * s.t_w)
 
 
+# Horizontal shear flow in an I-beam flange at distance s from the flange tip:
+# q = V*Q/I with Q = (t_f*s)*(d - t_f)/2; largest where the flange meets the web (s = b_f/2)
+func flange_shear_flow(s: float) -> float:
+	if not section is ISection:
+		return 0.0
+	var i := section as ISection
+	return shear_force * (i.t_f * s) * (i.d - i.t_f) / 2.0 / section.moment_of_inertia()
+
+
 # tau_avg = V/A (for comparison: a rectangle reaches 1.5*tau_avg)
 func average_shear_stress() -> float:
 	return shear_force / section.area()
