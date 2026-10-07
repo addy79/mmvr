@@ -239,11 +239,7 @@ func fill_figures(figures: FigureArea) -> void:
 	match step():
 		0, 1, 2:
 			var p := figures.plot(0)
-			var probe := RodAndPin.new()
-			probe.rod_diameter = model.rod_diameter
-			probe.pin_diameter = model.pin_diameter
-			probe.eye_thickness = model.eye_thickness
-			probe.double_shear = model.double_shear
+			var probe: RodAndPin = _copy_model()
 			probe.load = p_max / Units.KN
 			var end_value: float = [probe.normal_stress(), probe.pin_shear_stress(), probe.bearing_stress()][step()]
 			var now: float = [model.normal_stress(), model.pin_shear_stress(), model.bearing_stress()][step()]
@@ -258,15 +254,27 @@ func fill_figures(figures: FigureArea) -> void:
 			p.begin("Stresses on the cut vs. its angle θ", "θ (°)", "stress (MPa)")
 			var sig := PackedVector2Array()
 			var tau := PackedVector2Array()
-			var s0: float = model.normal_stress() * Units.MPA
+			var probe: RodAndPin = _copy_model()
 			for i: int in 91:
-				var th: float = deg_to_rad(float(i))
-				sig.append(Vector2(i, s0 * cos(th) * cos(th)))
-				tau.append(Vector2(i, s0 * sin(th) * cos(th)))
+				probe.plane_angle = deg_to_rad(float(i))
+				sig.append(Vector2(i, probe.oblique_normal_stress() * Units.MPA))
+				tau.append(Vector2(i, probe.oblique_shear_stress() * Units.MPA))
+			var s0: float = model.normal_stress() * Units.MPA
 			p.line(sig, Color(1.0, 0.45, 0.35), 3.0)
 			p.line(tau, Color(0.35, 0.85, 1.0), 3.0)
 			p.vline(rad_to_deg(model.plane_angle), Color(1, 0.85, 0.4), "θ")
 			p.marker(Vector2(45.0, s0 / 2.0), Color(0.35, 0.85, 1.0), "τ_max at 45°")
+
+
+func _copy_model() -> RodAndPin:
+	var c := RodAndPin.new()
+	c.load = model.load
+	c.rod_diameter = model.rod_diameter
+	c.pin_diameter = model.pin_diameter
+	c.eye_thickness = model.eye_thickness
+	c.double_shear = model.double_shear
+	c.material = model.material
+	return c
 
 
 func frame_points() -> PackedVector3Array:

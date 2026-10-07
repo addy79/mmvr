@@ -72,11 +72,11 @@ func show_stresses(sigma_x: float, sigma_y: float, tau: float, theta: float) -> 
 		var len_s: float = _length(tau) * signf(tau)
 		_shears[i].place(face_center + n * 0.03 - tangent * len_s / 2.0, tangent * len_s)
 	_caption_x.text = "σx' = %s" % Units.stress(sigma_x)
-	_caption_x.position = Vector3(h + 0.55, 0.0, 0.0)
+	_caption_x.position = Vector3(h + 0.45, -0.12, 0.0)
 	_caption_y.text = "σy' = %s" % Units.stress(sigma_y)
-	_caption_y.position = Vector3(0.0, h + 0.5, 0.0)
+	_caption_y.position = Vector3(0.12, h + 0.42, 0.0)
 	_caption_t.text = "τx'y' = %s" % Units.stress(tau)
-	_caption_t.position = Vector3(h + 0.45, h + 0.3, 0.0)
+	_caption_t.position = Vector3(h + 0.3, h + 0.2, 0.0)
 
 
 func _length(stress: float) -> float:

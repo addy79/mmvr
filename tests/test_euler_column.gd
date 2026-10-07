@@ -56,3 +56,8 @@ func test_deflected_shape_and_face_stress() -> void:
 	assert_within_1pct(c.stress_at(0.5, 1.0), -18.087e6, "concave face")
 	c.ends = EulerColumn.Ends.FIXED_FREE
 	assert_within_1pct(c.lateral_deflection_at(1.0), c.max_deflection(), "free top deflects most")
+
+
+# Squash load of the 50 x 100 steel rectangle: 250e6*5e-3 = 1250 kN
+func test_squash_load() -> void:
+	assert_within_1pct(EulerColumn.new().squash_load(), 1.25e6, "sigma_Y*A")

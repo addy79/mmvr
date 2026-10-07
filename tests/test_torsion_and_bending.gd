@@ -43,3 +43,10 @@ func test_pure_bending() -> void:
 # T = 2 kN*m, tau_all = 60 MPa: c = (2*2000/(pi*60e6))^(1/3) = 27.68 mm
 func test_required_radius() -> void:
 	assert_within_1pct(TorsionShaft.new().required_solid_radius(60.0e6), 0.027679, "c_min")
+
+
+# Hollow 30/20 mm: equal-area solid c = sqrt(0.03^2 - 0.02^2) = 22.36 mm
+func test_equal_area_solid() -> void:
+	var s := TorsionShaft.new()
+	s.inner_radius = 0.02
+	assert_within_1pct(s.equal_area_solid().outer_radius, 0.022361, "equal area")

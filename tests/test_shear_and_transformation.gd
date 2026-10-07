@@ -56,3 +56,35 @@ func test_combined_loading() -> void:
 	assert_within_1pct(top.principal_2(), -1.5929e6, "s2")
 	assert_within_1pct(rad_to_deg(top.principal_angle()), 7.018, "theta_p")
 	assert_within_1pct(top.von_mises(), 105.914e6, "von Mises")
+
+
+# Area beyond y (numerical integration of the width): rectangle 100x200 at 50 mm: 0.1*0.05 = 5e-3;
+# circle r = 50 at 25 mm: 1.5355e-3; tube 50/40 at 25 mm: 8.830e-4; W200 at NA: 2.8882e-3,
+# in the flange at 95 mm: 1.3195e-3. Web of the W200 carries 94.6% of V.
+func test_area_beyond_and_web_share() -> void:
+	assert_within_1pct(RectSection.new(0.1, 0.2).area_beyond(0.05), 5.0e-3, "rect")
+	assert_within_1pct(CircleSection.new(0.05).area_beyond(0.025), 1.5355e-3, "circle")
+	assert_within_1pct(TubeSection.new(0.05, 0.04).area_beyond(0.025), 8.830e-4, "tube")
+	var ib := ISection.new(0.203, 0.203, 0.011, 0.00724)
+	assert_within_1pct(ib.area_beyond(0.0), 2.8882e-3, "I at NA")
+	assert_within_1pct(ib.area_beyond(0.095), 1.3195e-3, "I in flange")
+	var s := SectionShear.new()
+	assert_within_1pct(s.centroid_beyond(0.05), 3.75e-4 / 5.0e-3, "y' = Q/A'")
+	s.section = ib
+	assert_within_1pct(s.web_share(), 0.94634, "web share")
+
+
+# Every point of the drawn yield surfaces sits exactly at yield.
+func test_yield_boundaries() -> void:
+	for i: int in 12:
+		var p: Vector2 = PlaneStress.von_mises_boundary(TAU * i / 12.0, 250.0e6)
+		assert_within_1pct(PlaneStress.new(p.x, p.y, 0.0).von_mises(), 250.0e6, "von Mises ellipse")
+	for corner: Vector2 in PlaneStress.tresca_boundary(250.0e6):
+		assert_within_1pct(PlaneStress.new(corner.x, corner.y, 0.0).absolute_max_shear(), 125.0e6, "Tresca hexagon")
+
+
+# W200 web approximation, V = 50 kN: 50000/(0.203*0.00724) = 34.02 MPa
+func test_web_average_stress() -> void:
+	var s := SectionShear.new()
+	s.section = ISection.new(0.203, 0.203, 0.011, 0.00724)
+	assert_within_1pct(s.web_average_stress(), 34.02e6, "V/(d t_w)")

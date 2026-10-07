@@ -46,15 +46,38 @@ func _run() -> void:
 	get_tree().quit(_failures)
 
 
-## Station-specific checks of numbers shown to the student.
+## Station-specific checks: numbers the student sees vs. hand calculations.
 func _station_checks(station: Station) -> void:
 	match station.chapter:
+		1:
+			_expect(station, 0, {}, "63.66 MPa", "ch1: σ = P/A for 20 kN on d = 20 mm")
+		2:
+			_expect(station, 1, {&"eps": 0.001}, "200.00 MPa", "ch2: Hooke's law at ε = 0.1 %")
+		3:
+			_expect(station, 1, {}, "47.16 MPa", "ch3: τ_max = Tc/J")
+		4:
+			_expect(station, 2, {}, "15.00 MPa", "ch4: σ_m = Mc/I")
 		5:
-			station.set_step(0)
-			station.set_control(&"a", 1.0)
-			station.set_control(&"w", 0.0)
-			await _frames(2)
-			_check(station.lesson_text().contains("7.50 kN"), "ch5: a = 1 m gives R_A = 7.50 kN")
+			_expect(station, 0, {&"a": 1.0, &"w": 0.0}, "7.50 kN", "ch5: a = 1 m gives R_A = 7.50 kN")
+		6:
+			_expect(station, 2, {}, "3.75 MPa", "ch6: τ_max = 1.5 V/A")
+		7:
+			_expect(station, 2, {}, "70.00 MPa", "ch7: σ_max of B&J example 7.01")
+		8:
+			_expect(station, 2, {}, "103.52 MPa", "ch8: bending stress at the top point")
+		9:
+			_expect(station, 1, {&"support": 1.0, &"w": 0.0, &"a": 4.0}, "23.82 mm", "ch9: cantilever PL³/3EI")
+		10:
+			_expect(station, 1, {}, "228.46 kN", "ch10: Euler load")
+			_expect(station, 0, {&"P": 300.0e3}, "buckled", "ch10: buckles above P_cr")
+			await _shot("ch10_buckled.png")
+
+
+func _expect(station: Station, step: int, inputs: Dictionary, text: String, label: String) -> void:
+	for id: StringName in inputs:
+		station.set_control(id, inputs[id])
+	station.set_step(step)
+	_check(station.lesson_text().contains(text), label)
 
 
 ## Hides (or shows) the desktop panels and re-frames the camera like pressing Tab.

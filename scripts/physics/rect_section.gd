@@ -44,5 +44,10 @@ func first_moment(y: float) -> float:
 	return 0.5 * b * (h * h / 4.0 - ay * ay)
 
 
+# A' = b*(h/2 - |y|)
+func area_beyond(y: float) -> float:
+	return b * maxf(h / 2.0 - absf(y), 0.0)
+
+
 func width_at(y: float) -> float:
 	return b if absf(y) <= h / 2.0 else 0.0

@@ -155,3 +155,10 @@ func test_slope_and_curvature_are_consistent() -> void:
 # Shear flow q = VQ/I: 7500*5e-4/6.6667e-5 = 56250 N/m at the neutral axis, left of the load
 func test_shear_flow() -> void:
 	assert_within_1pct(_beam(1.0).shear_flow(0.5, 0.0), 56250.0, "q at NA")
+
+
+# S = I/c = 6.6667e-4 m^3; for M_max = 7.5 kN*m and sigma_all = 125 MPa, S_min = 6.0e-5 m^3
+func test_section_modulus_design() -> void:
+	var beam := _beam(1.0)
+	assert_within_1pct(beam.section.section_modulus(), 6.6667e-4, "S")
+	assert_within_1pct(beam.required_section_modulus(125.0e6), 6.0e-5, "S_min")

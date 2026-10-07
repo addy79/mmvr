@@ -56,6 +56,17 @@ func first_moment(y: float) -> float:
 	return b_f * t_f * (d - t_f) / 2.0 + 0.5 * t_w * (half_w * half_w - ay * ay)
 
 
+# Flange: A' = b_f*(d/2 - |y|); web: A' = b_f*t_f + t_w*(h_w/2 - |y|)
+func area_beyond(y: float) -> float:
+	var ay: float = absf(y)
+	var half_w: float = _web_height() / 2.0
+	if ay >= d / 2.0:
+		return 0.0
+	if ay >= half_w:
+		return b_f * (d / 2.0 - ay)
+	return b_f * t_f + t_w * (half_w - ay)
+
+
 func width_at(y: float) -> float:
 	var ay: float = absf(y)
 	if ay > d / 2.0:

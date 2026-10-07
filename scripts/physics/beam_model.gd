@@ -109,6 +109,16 @@ func factor_of_safety() -> float:
 	return material.yield_strength / sigma if sigma > 0.0 else INF
 
 
+# Strength design: S_min = |M|max/sigma_all
+func required_section_modulus(allowable_stress: float) -> float:
+	return absf(max_moment()) / allowable_stress
+
+
+# Curvature 1/rho = M/(EI) (sagging positive); d^2v/dx^2 = -M/(EI) for downward v
+func curvature_at(x: float) -> float:
+	return moment_at(x) / flexural_rigidity()
+
+
 # Stiffness design: v is proportional to 1/I, so the I that brings v_max down to `limit` is
 # I_req = I * v_max/limit
 func required_inertia(limit: float) -> float:

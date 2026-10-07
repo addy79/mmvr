@@ -174,7 +174,7 @@ func lesson_text() -> String:
 		1:
 			var ey: float = curve.yield_strain()
 			t += "In the elastic region stress is proportional to strain: [b]Hooke's law[/b]. The slope is the modulus of elasticity E, a stiffness property of the material.\n"
-			t += F.equation("σ = E·ε", "%s × %s" % [Units.modulus(m.youngs_modulus), Units.strain(minf(eps, ey))], Units.stress(m.youngs_modulus * minf(eps, ey)))
+			t += F.equation("σ = E·ε", "%s × %s" % [Units.modulus(m.youngs_modulus), Units.strain(minf(eps, ey))], Units.stress(curve.stress_at(minf(eps, ey))))
 			t += F.equation("ε_Y = σ_Y/E", "%s / %s" % [Units.stress(m.yield_strength), Units.modulus(m.youngs_modulus)], Units.strain(ey))
 			t += "Elastic strains are tiny: steel yields at about 0.1 %. Inside this range the specimen returns exactly to its original length when unloaded.\n"
 			t += "The area under the elastic part is the energy stored per unit volume, the [b]modulus of resilience[/b]:\n"
@@ -210,10 +210,19 @@ func lesson_text() -> String:
 			t += F.try_this("pull harder and watch the drawn bar neck down along its whole length (exaggerated).")
 		6:
 			var a: float = member.material.thermal_expansion
+			var free := AxialMember.new()
+			free.material = member.material
+			free.length = member.length
+			free.load = 0.0
+			free.temperature_change = member.temperature_change
+			var held := AxialMember.new()
+			held.material = member.material
+			held.ends_fixed = true
+			held.temperature_change = member.temperature_change
 			t += "Heating makes a bar grow: thermal strain ε_T = α·ΔT. If it is free, nothing resists, so there is [b]no stress[/b]:\n"
-			t += F.equation("δ_T = α·ΔT·L", "%.1f×10⁻⁶/°C × %s × %s" % [a * 1e6, Units.temperature_change(member.temperature_change), Units.length(member.length)], Units.small_length(member.material.thermal_expansion * member.temperature_change * member.length))
+			t += F.equation("δ_T = α·ΔT·L", "%.1f×10⁻⁶/°C × %s × %s" % [a * 1e6, Units.temperature_change(member.temperature_change), Units.length(member.length)], Units.small_length(free.elongation()))
 			t += "Held between two walls, the bar cannot change length (δ = 0). The walls push back with exactly the force that would squeeze the free expansion out (superposition: δ_T + δ_P = 0):\n"
-			t += F.equation("σ = −E·α·ΔT", "−%s × %.1f×10⁻⁶ × %s" % [Units.modulus(member.material.youngs_modulus), a * 1e6, Units.temperature_change(member.temperature_change)], Units.stress(-member.material.youngs_modulus * a * member.temperature_change))
+			t += F.equation("σ = −E·α·ΔT", "−%s × %.1f×10⁻⁶ × %s" % [Units.modulus(member.material.youngs_modulus), a * 1e6, Units.temperature_change(member.temperature_change)], Units.stress(held.stress()))
 			t += F.note("The thermal stress does not depend on L or on the cross-section, only on E·α·ΔT.")
 			t += F.try_this("fix both ends and heat steel by 100 °C: about −234 MPa, close to yield. Rails and bridges need expansion joints.")
 	return t
@@ -257,10 +266,17 @@ func fill_figures(figures: FigureArea) -> void:
 		6:
 			var p := figures.plot(0)
 			p.begin("Fixed ends: thermal stress vs ΔT", "ΔT (°C)", "σ (MPa)")
-			var e_alpha: float = member.material.youngs_modulus * member.material.thermal_expansion * Units.MPA
-			p.line(PackedVector2Array([Vector2(-60.0, 60.0 * e_alpha), Vector2(120.0, -120.0 * e_alpha)]), Color(0.4, 0.7, 1.0), 3.0)
+			var probe := AxialMember.new()
+			probe.material = member.material
+			probe.ends_fixed = true
+			var pts := PackedVector2Array()
+			for d_t: float in [-60.0, 120.0]:
+				probe.temperature_change = d_t
+				pts.append(Vector2(d_t, probe.stress() * Units.MPA))
+			p.line(pts, Color(0.4, 0.7, 1.0), 3.0)
 			p.hline(-member.material.yield_strength * Units.MPA, Color(1.0, 0.4, 0.4), "−σ_Y")
-			p.marker(Vector2(member.temperature_change, -member.temperature_change * e_alpha), Color(1, 1, 1), "now")
+			probe.temperature_change = member.temperature_change
+			p.marker(Vector2(member.temperature_change, probe.stress() * Units.MPA), Color(1, 1, 1), "now")
 
 
 func _curve_points(eps_end: float) -> PackedVector2Array:

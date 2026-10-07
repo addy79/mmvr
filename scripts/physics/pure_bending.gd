@@ -31,7 +31,7 @@ func stress_at(y: float) -> float:
 
 # Elastic section modulus: S = I/c
 func section_modulus() -> float:
-	return section.moment_of_inertia() / section.y_max()
+	return section.section_modulus()
 
 
 # sigma_m = |M|/S = |M|*c/I

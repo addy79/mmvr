@@ -47,6 +47,19 @@ func width_at(y: float) -> float:
 	return _chord(r_o, y) - _chord(r_i, y)
 
 
+# A' = outer segment - inner segment
+func area_beyond(y: float) -> float:
+	return _segment_area(r_o, y) - _segment_area(r_i, y)
+
+
+# Circular segment beyond |y|: A = r^2*acos(|y|/r) - |y|*sqrt(r^2 - y^2)
+static func _segment_area(radius: float, y: float) -> float:
+	var ay: float = absf(y)
+	if ay >= radius:
+		return 0.0
+	return radius * radius * acos(ay / radius) - ay * sqrt(radius * radius - ay * ay)
+
+
 # Circular segment above y: Q = (2/3)*(r^2 - y^2)^(3/2)
 static func _segment_q(radius: float, y: float) -> float:
 	var s: float = radius * radius - y * y

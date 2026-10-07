@@ -61,6 +61,11 @@ func transition_slenderness() -> float:
 	return PI * sqrt(material.youngs_modulus / material.yield_strength)
 
 
+# Squash load: the whole section yields, P_Y = sigma_Y*A
+func squash_load() -> float:
+	return material.yield_strength * section.area()
+
+
 # FS against buckling = P_cr/P
 func buckling_safety() -> float:
 	return critical_load() / load if load > 0.0 else INF

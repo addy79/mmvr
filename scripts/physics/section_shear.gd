@@ -22,6 +22,34 @@ func max_shear_stress() -> float:
 	return shear_stress_at(0.0)
 
 
+# Centroid distance of A' from the neutral axis: y' = Q/A'
+func centroid_beyond(y: float) -> float:
+	var a: float = section.area_beyond(y)
+	return section.first_moment(y) / a if a > 0.0 else 0.0
+
+
+# Share of V carried by an I-beam's web: (1/V)*integral of tau*t dy over the web
+#   = (1/I)*integral of Q(y) dy over -h_w/2..h_w/2 (midpoint rule). 1 for other sections.
+func web_share() -> float:
+	if not section is ISection:
+		return 1.0
+	var s := section as ISection
+	var half: float = (s.d - 2.0 * s.t_f) / 2.0
+	const STEPS: int = 400
+	var total: float = 0.0
+	for i: int in STEPS:
+		total += section.first_moment(-half + (i + 0.5) * 2.0 * half / STEPS)
+	return total * 2.0 * half / STEPS / section.moment_of_inertia()
+
+
+# Design approximation for I-beams: tau ~ V/(d*t_w) (web carries V uniformly over the full depth)
+func web_average_stress() -> float:
+	if not section is ISection:
+		return INF
+	var s := section as ISection
+	return shear_force / (s.d * s.t_w)
+
+
 # tau_avg = V/A (for comparison: a rectangle reaches 1.5*tau_avg)
 func average_shear_stress() -> float:
 	return shear_force / section.area()

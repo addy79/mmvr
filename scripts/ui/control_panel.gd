@@ -57,7 +57,8 @@ func setup(topic_titles: PackedStringArray, font_size: int, hint: String) -> voi
 
 ## Rebuilds the input rows for a newly selected station.
 func show_station(station: Station, index: int) -> void:
-	_topic_buttons[index].set_pressed_no_signal(true)
+	for i: int in _topic_buttons.size():
+		_topic_buttons[i].set_pressed_no_signal(i == index)
 	_station_title.text = "Chapter %d · %s" % [station.chapter, station.title]
 	for child: Node in _rows.get_children():
 		child.queue_free()

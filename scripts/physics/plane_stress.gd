@@ -76,6 +76,22 @@ func von_mises() -> float:
 	return sqrt(s1 * s1 - s1 * s2 + s2 * s2)
 
 
+## Point of the von Mises yield ellipse s_a^2 - s_a*s_b + s_b^2 = s_Y^2 at parameter phi.
+# Along the 45-degree axes u = (s_a + s_b)/sqrt(2), v = (s_b - s_a)/sqrt(2) it reads
+# u^2/2 + 3v^2/2 = s_Y^2, so u = sqrt(2)*s_Y*cos(phi), v = sqrt(2/3)*s_Y*sin(phi).
+static func von_mises_boundary(phi: float, yield_strength: float) -> Vector2:
+	var u: float = sqrt(2.0) * yield_strength * cos(phi)
+	var v: float = sqrt(2.0 / 3.0) * yield_strength * sin(phi)
+	return Vector2((u - v) / sqrt(2.0), (u + v) / sqrt(2.0))
+
+
+## Corners of the Tresca hexagon (sigma_3 = 0): max(|s_a|, |s_b|, |s_a - s_b|) = s_Y.
+static func tresca_boundary(yield_strength: float) -> PackedVector2Array:
+	var s: float = yield_strength
+	return PackedVector2Array([Vector2(s, 0), Vector2(s, s), Vector2(0, s), Vector2(-s, 0),
+			Vector2(-s, -s), Vector2(0, -s), Vector2(s, 0)])
+
+
 # Maximum-distortion-energy criterion: FS = sigma_Y/sigma_vm
 func von_mises_safety(yield_strength: float) -> float:
 	var vm: float = von_mises()

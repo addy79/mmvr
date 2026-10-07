@@ -47,6 +47,16 @@ func factor_of_safety() -> float:
 	return material.yield_strength / 2.0 / tau if tau > 0.0 else INF
 
 
+# Solid shaft with the same area (same weight): pi*c^2 = pi*(r_o^2 - r_i^2)
+func equal_area_solid() -> TorsionShaft:
+	var s := TorsionShaft.new()
+	s.torque = torque
+	s.length = length
+	s.material = material
+	s.outer_radius = sqrt(outer_radius * outer_radius - inner_radius * inner_radius)
+	return s
+
+
 # Smallest solid shaft for an allowable shear stress: tau_all = 2T/(pi*c^3) => c = (2T/(pi*tau_all))^(1/3)
 func required_solid_radius(tau_all: float) -> float:
 	return pow(2.0 * absf(torque) / (PI * tau_all), 1.0 / 3.0)

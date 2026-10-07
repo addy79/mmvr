@@ -36,6 +36,16 @@ func first_moment(_y: float) -> float:
 	return 0.0
 
 
+## Area A' [m^2] of the part beyond height |y| (the area whose first moment is Q).
+func area_beyond(_y: float) -> float:
+	return 0.0
+
+
+# Elastic section modulus: S = I/c
+func section_modulus() -> float:
+	return moment_of_inertia() / y_max()
+
+
 ## Section width t [m] cut by the horizontal line at height y.
 func width_at(_y: float) -> float:
 	return 0.0

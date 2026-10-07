@@ -158,10 +158,7 @@ func lesson_text() -> String:
 			t += "φ grows linearly along the shaft from the wall. JG is the [b]torsional rigidity[/b]: the stiffer the shaft, the smaller the twist.\n"
 			t += F.try_this("switch to aluminum: G is about one third of steel's, so the twist triples while the stresses stay the same.")
 		3:
-			var solid := TorsionShaft.new()
-			solid.torque = shaft.torque
-			solid.material = shaft.material
-			solid.outer_radius = sqrt(shaft.outer_radius * shaft.outer_radius - shaft.inner_radius * shaft.inner_radius)
+			var solid: TorsionShaft = shaft.equal_area_solid()
 			t += "Material near the axis carries little stress (τ ∝ ρ), so it is wasted. A [b]hollow shaft[/b] removes it:\n"
 			t += F.equation("J = π·(c₂⁴ − c₁⁴)/2", "", J)
 			t += F.equation("τ_max = T·c₂/J", "", Units.stress(shaft.max_shear_stress()))

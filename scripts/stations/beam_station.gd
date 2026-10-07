@@ -219,9 +219,9 @@ func lesson_text() -> String:
 			t += "At the cut: M = %s, I = %s, c = %s\n" % [Units.moment(beam.moment_at(x)), Units.inertia(s.moment_of_inertia()), Units.small_length(s.y_max())]
 			t += F.equation("σ_top = −M·c/I", "", Units.stress(sigma_top))
 			t += F.equation("σ_bottom = +M·c/I", "", Units.stress(sigma_bot))
-			t += F.equation("σ_max = |M|max·c/I = |M|max/S", "%s / %s" % [Units.moment(absf(beam.max_moment())), Units.first_moment(s.moment_of_inertia() / s.y_max())], Units.stress(beam.max_bending_stress()))
+			t += F.equation("σ_max = |M|max·c/I = |M|max/S", "%s / %s" % [Units.moment(absf(beam.max_moment())), Units.first_moment(s.section_modulus())], Units.stress(beam.max_bending_stress()))
 			t += "\nS = I/c is the [b]section modulus[/b]: for the same area, deep sections (and I-beams) put material far from the axis, so I and S are large.\n"
-			t += F.try_this("switch the cross-section and compare σ_max. The I-beam has %s; the circle has %s." % [Units.first_moment(_sections[3].moment_of_inertia() / _sections[3].y_max()), Units.first_moment(_sections[1].moment_of_inertia() / _sections[1].y_max())])
+			t += F.try_this("switch the cross-section and compare σ_max. The I-beam has S = %s; the circle has %s." % [Units.first_moment(_sections[3].section_modulus()), Units.first_moment(_sections[1].section_modulus())])
 		3:
 			var v: float = beam.shear_at(x)
 			t += "The shear force V is not spread evenly: horizontal layers try to slide on each other, and the stress needed to stop them is largest at the neutral axis and zero at the top and bottom (blue arrows).\n"
@@ -256,8 +256,8 @@ func lesson_text() -> String:
 		6:
 			var fs: float = beam.factor_of_safety()
 			var allowable: float = beam.material.yield_strength / TARGET_FS
-			var s_min: float = absf(beam.max_moment()) / allowable
-			var s_have: float = s.moment_of_inertia() / s.y_max()
+			var s_min: float = beam.required_section_modulus(allowable)
+			var s_have: float = s.section_modulus()
 			t += "Design asks: is the beam strong enough, with a margin? Compare the largest stress with the material strength.\n"
 			t += F.equation("FS = σ_Y/σ_max", "%s / %s" % [Units.stress(beam.material.yield_strength), Units.stress(beam.max_bending_stress())], Units.factor(fs))
 			t += "With a target FS = %.1f the allowable stress is σ_all = σ_Y/FS = %s, so the section needs\n" % [TARGET_FS, Units.stress(allowable)]

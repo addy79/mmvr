@@ -144,16 +144,26 @@ func fill_figures(figures: FigureArea) -> void:
 		3:
 			var p := figures.plot(0)
 			p.begin("Moment-curvature: slope 1/EI", "M (kN·m)", "1/ρ (10⁻³/m)")
-			var k_per_m: float = model.curvature() / model.moment if model.moment != 0.0 else 1.0 / (model.material.youngs_modulus * model.section.moment_of_inertia())
-			p.line(PackedVector2Array([Vector2(-60.0, -60.0e3 * k_per_m * 1e3), Vector2(60.0, 60.0e3 * k_per_m * 1e3)]), Color(0.6, 0.8, 1.0), 3.0)
+			p.line(_sweep(func(m: PureBending) -> float: return m.curvature() * 1e3, -60.0e3), Color(0.6, 0.8, 1.0), 3.0)
 			p.marker(Vector2(model.moment * Units.KN, model.curvature() * 1e3), Color(1, 1, 1), "now")
 		4:
 			var p := figures.plot(0)
 			p.begin("Maximum stress vs M for this section", "|M| (kN·m)", "σ_m (MPa)")
-			var s_mod: float = model.section_modulus()
-			p.line(PackedVector2Array([Vector2.ZERO, Vector2(60.0, 60.0e3 / s_mod * Units.MPA)]), Color(1.0, 0.6, 0.4), 3.0)
+			p.line(_sweep(func(m: PureBending) -> float: return m.max_stress() * Units.MPA, 0.0), Color(1.0, 0.6, 0.4), 3.0)
 			p.hline(model.material.yield_strength * Units.MPA, Color(1.0, 0.4, 0.4), "σ_Y")
 			p.marker(Vector2(absf(model.moment) * Units.KN, model.max_stress() * Units.MPA), Color(1, 1, 1), "now")
+
+
+## Evaluates f on copies of the model with M from m_from to 60 kN*m; x in kN*m.
+func _sweep(f: Callable, m_from: float) -> PackedVector2Array:
+	var probe := PureBending.new()
+	probe.section = model.section
+	probe.material = model.material
+	var pts := PackedVector2Array()
+	for i: int in 41:
+		probe.moment = m_from + (60.0e3 - m_from) * i / 40.0
+		pts.append(Vector2(probe.moment * Units.KN, f.call(probe)))
+	return pts
 
 
 func frame_points() -> PackedVector3Array:

@@ -40,6 +40,11 @@ func first_moment(y: float) -> float:
 	return 2.0 / 3.0 * pow(s, 1.5) if s > 0.0 else 0.0
 
 
+# Circular segment: A' = r^2*acos(|y|/r) - |y|*sqrt(r^2 - y^2)
+func area_beyond(y: float) -> float:
+	return TubeSection._segment_area(r, y)
+
+
 # t(y) = 2*sqrt(r^2 - y^2) (chord length)
 func width_at(y: float) -> float:
 	var s: float = r * r - y * y
