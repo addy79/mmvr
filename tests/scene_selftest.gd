@@ -81,6 +81,16 @@ func _run() -> void:
 		await _frames(3)
 		await _shot("06_formula_board.png")
 
+	if camera is XRCamera3D:
+		# --xr-preview: turn the head toward each panel.
+		for screen: Node in _main.find_children("*", "XRToolsViewport2DIn3D", true, false):
+			camera.look_at((screen as Node3D).global_position)
+			await _frames(5)
+			await _shot("07_xr_control_panel.png")
+		camera.look_at(board.global_position)
+		await _frames(3)
+		await _shot("08_xr_formula_board.png")
+
 	print("SELFTEST %s: %d failure(s)" % ["PASSED" if _failures == 0 else "FAILED", _failures])
 	get_tree().quit(_failures)
 

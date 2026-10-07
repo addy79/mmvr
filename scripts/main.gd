@@ -31,9 +31,12 @@ func _ready() -> void:
 	add_child(controller)
 	_build_environment()
 	_build_lab()
-	xr_active = _start_xr()
+	# --xr-preview builds the VR scene without a headset, seen from the XR camera's start pose.
+	xr_active = _start_xr() or OS.get_cmdline_user_args().has("--xr-preview")
 	if xr_active:
 		_build_xr_player()
+		if not get_viewport().use_xr:
+			get_viewport().get_camera_3d().fov = 100.0  # preview: roughly a Quest's field of view
 	else:
 		_build_desktop()
 
@@ -175,8 +178,11 @@ func _build_xr_player() -> void:
 	screen.screen_size = Vector2(0.6, 0.8)
 	screen.viewport_size = Vector2(600.0, 800.0)
 	screen.update_mode = XRToolsViewport2DIn3D.UpdateMode.UPDATE_THROTTLED
-	screen.position = Vector3(-2.9, 1.35, 0.9)
-	screen.rotation.y = deg_to_rad(40.0)
+	# Arm's length to the student's left and right, clear of the line of sight to the beam.
+	screen.position = XR_PLAYER_START + Vector3(-1.0, 1.2, -0.1)
+	screen.rotation = Vector3(deg_to_rad(-15.0), deg_to_rad(75.0), 0.0)
+	formula_panel.position = XR_PLAYER_START + Vector3(2.1, 1.5, -0.3)
+	formula_panel.rotation.y = deg_to_rad(-75.0)
 	add_child(screen)
 	screen.scene = CONTROL_PANEL
 	panel = screen.get_scene_instance() as ControlPanel

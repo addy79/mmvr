@@ -1,0 +1,3 @@
+#!/bin/bash
+# Launch MMLabVR (desktop mode; uses OpenXR if a VR runtime is running).
+exec godot --path "$(dirname "$(realpath "$0")")" "$@"
