@@ -48,3 +48,29 @@ func test_allowable_loads() -> void:
 	assert_within_1pct(r.allowable_load_rod(150.0e6), 47.124e3, "rod")
 	assert_within_1pct(r.allowable_load_pin(75.0e6), 30.159e3, "pin")
 	assert_within_1pct(r.allowable_load_bearing(225.0e6), 72.0e3, "bearing")
+
+
+# Steel, L1 = 0.4 m d1 = 30 mm, L2 = 0.6 m d2 = 20 mm, P = 100 kN at B:
+#   N1 = P*f2/(f1 + f2) = 77.14 kN, N2 = -22.86 kN, sigma1 = 109.13 MPa, sigma2 = -72.76 MPa,
+#   u_B = 0.2183 mm. With dT = +30 K: N1 = 48.79 kN, N2 = -51.21 kN, sigma2 = -163.0 MPa.
+func test_indeterminate_bar() -> void:
+	var b := IndeterminateBar.new()
+	assert_within_1pct(b.force_1(), 77.143e3, "N1")
+	assert_within_1pct(b.force_2(), -22.857e3, "N2")
+	assert_within_1pct(b.stress_1(), 109.13e6, "sigma1")
+	assert_within_1pct(b.stress_2(), -72.757e6, "sigma2")
+	assert_within_1pct(b.displacement_b(), 2.1827e-4, "u_B")
+	assert_within_1pct(b.reaction_a() + b.reaction_c(), 100.0e3, "R_A + R_C = P")
+	b.temperature_change = 30.0
+	assert_within_1pct(b.force_1(), 48.788e3, "N1 heated")
+	assert_within_1pct(b.stress_2(), -163.01e6, "sigma2 heated")
+
+
+# Steel, sigma = (100, -50, 20) MPa: eps = (545, -430, 25)e-6, e = 140e-6, k = 166.7 GPa
+func test_generalized_hooke() -> void:
+	var g := GeneralizedHooke.new()
+	assert_within_1pct(g.strain_x(), 545.0e-6, "eps_x")
+	assert_within_1pct(g.strain_y(), -430.0e-6, "eps_y")
+	assert_within_1pct(g.strain_z(), 25.0e-6, "eps_z")
+	assert_within_1pct(g.dilatation(), 140.0e-6, "dilatation")
+	assert_within_1pct(g.bulk_modulus(), 166.67e9, "k")

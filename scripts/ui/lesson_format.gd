@@ -6,6 +6,7 @@ const EQ_COLOR: String = "#9fd3ff"
 const VALUE_COLOR: String = "#ffd479"
 const TRY_COLOR: String = "#a6f0a6"
 const NOTE_COLOR: String = "#c8c8d0"
+const DERIVATION_COLOR: String = "#d8c8ff"
 
 
 ## A displayed equation: symbolic form, then the numbers, then the result.
@@ -16,6 +17,11 @@ static func equation(symbolic: String, substituted: String = "", result: String 
 	if not result.is_empty():
 		s += "  =  [color=%s][b]%s[/b][/color]" % [VALUE_COLOR, result]
 	return s + "[/indent]\n"
+
+
+## Short derivation, set apart from the main text.
+static func derivation(text: String) -> String:
+	return "[indent][color=%s][b]Derivation:[/b] %s[/color][/indent]\n" % [DERIVATION_COLOR, text]
 
 
 static func value(text: String) -> String:

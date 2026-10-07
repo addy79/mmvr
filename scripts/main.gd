@@ -230,6 +230,8 @@ func take_screenshot(file_name: String = "") -> String:
 	await RenderingServer.frame_post_draw
 	var dir: String = ProjectSettings.globalize_path("res://screenshots")
 	DirAccess.make_dir_recursive_absolute(dir)
+	if not FileAccess.file_exists(dir.path_join(".gdignore")):
+		FileAccess.open(dir.path_join(".gdignore"), FileAccess.WRITE)  # keep the editor from importing them
 	if file_name.is_empty():
 		file_name = "mmlabvr_%s.png" % Time.get_datetime_string_from_system().replace(":", "-")
 	var path: String = dir.path_join(file_name)

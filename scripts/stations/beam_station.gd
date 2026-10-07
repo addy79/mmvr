@@ -6,7 +6,7 @@ extends Station
 const LENGTH: float = 4.0
 const ORIGIN := Vector3(-2.0, 0.95, 0.0)   ## bottom fiber at support A
 const STRESS_ARROWS: int = 9
-const SECTION_NAMES: PackedStringArray = ["Rectangle", "Circle", "Tube", "I-beam"]
+const SECTION_NAMES: PackedStringArray = ["Rectangle", "Circle", "Tube", "I-beam", "Box"]
 const MATERIAL_NAMES: PackedStringArray = ["Steel", "Aluminum", "Wood"]
 const TARGET_FS: float = 2.0
 

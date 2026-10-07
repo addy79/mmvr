@@ -18,8 +18,10 @@ func _ready() -> void:
 
 func _run() -> void:
 	await _frames(10)
-	var panel: LessonPanel = _main.get("lesson_panel")
+	var only: int = int(OS.get_cmdline_user_args()[OS.get_cmdline_user_args().find("--chapter") + 1]) if OS.get_cmdline_user_args().has("--chapter") else 0
 	for index: int in 10:
+		if only > 0 and index + 1 != only:
+			continue
 		if not ResourceLoader.exists(_main.STATIONS[index]):
 			continue
 		_main.call("load_station", index)
@@ -61,6 +63,8 @@ func _station_checks(station: Station) -> void:
 			_expect(station, 0, {}, "63.66 MPa", "ch1: σ = P/A for 20 kN on d = 20 mm")
 		2:
 			_expect(station, 1, {&"eps": 0.001}, "200.00 MPa", "ch2: Hooke's law at ε = 0.1 %")
+			_expect(station, 8, {}, "109.13 MPa", "ch2: indeterminate bar σ_AB")
+			_expect(station, 7, {}, "545×10⁻⁶", "ch2: generalized Hooke ε_x")
 		3:
 			_expect(station, 1, {}, "47.16 MPa", "ch3: τ_max = Tc/J")
 		4:

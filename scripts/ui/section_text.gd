@@ -16,4 +16,7 @@ static func describe(section: CrossSection) -> String:
 		var i := section as ISection
 		return "I-beam d = %.0f, b_f = %.0f, t_f = %.1f, t_w = %.2f mm" % [i.d * 1e3, i.b_f * 1e3,
 				i.t_f * 1e3, i.t_w * 1e3]
+	if section is BoxSection:
+		var x := section as BoxSection
+		return "Box b × h × t = %.0f × %.0f × %.0f mm" % [x.b * 1e3, x.h * 1e3, x.t * 1e3]
 	return section.display_name

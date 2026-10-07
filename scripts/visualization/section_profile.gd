@@ -28,6 +28,8 @@ static func for_section(section: CrossSection) -> SectionProfile:
 		profile._add_annulus_cap(tube.r_o, tube.r_i)
 	elif section is ISection:
 		profile._add_i_beam(section as ISection)
+	elif section is BoxSection:
+		profile._add_box_section(section as BoxSection)
 	return profile
 
 
@@ -89,6 +91,20 @@ func _add_annulus_cap(outer: float, inner: float) -> void:
 		cap_triangles.append_array(PackedVector2Array([d0 * inner, d0 * outer, d1 * outer]))
 		if inner > 0.0:
 			cap_triangles.append_array(PackedVector2Array([d0 * inner, d1 * outer, d1 * inner]))
+
+
+## Outer rectangle (counterclockwise, normals out) and inner one (clockwise, normals into the hole).
+func _add_box_section(s: BoxSection) -> void:
+	var hb: float = s.b / 2.0
+	var hh: float = s.h / 2.0
+	var ib: float = hb - s.t
+	var ih: float = hh - s.t
+	_add_polygon(_box(-hb, -hh, hb, hh))
+	_add_polygon(PackedVector2Array([Vector2(-ib, -ih), Vector2(-ib, ih), Vector2(ib, ih), Vector2(ib, -ih)]))
+	_add_box_cap(-hb, ih, hb, hh)
+	_add_box_cap(-hb, -hh, hb, -ih)
+	_add_box_cap(-hb, -ih, -ib, ih)
+	_add_box_cap(ib, -ih, hb, ih)
 
 
 func _add_i_beam(s: ISection) -> void:

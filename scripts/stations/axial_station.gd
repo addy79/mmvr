@@ -12,8 +12,15 @@ const BAR_DRAWN: float = 1.2        ## drawn length of the bench bar [m]
 const MAX_DRAWN_STRETCH: float = 0.4
 const MATERIAL_NAMES: PackedStringArray = ["Steel", "Aluminum", "Wood"]
 
+const HOOKE: int = 7
+const INDETERMINATE: int = 8
+const CUBE := Vector3(0.9, 1.35, 0.0)
+const CUBE_SIZE: float = 0.45
+
 var curve: StressStrainCurve
 var member: AxialMember = AxialMember.new()
+var hooke: GeneralizedHooke = GeneralizedHooke.new()
+var bar: IndeterminateBar = IndeterminateBar.new()
 
 var _materials: Array[LabMaterial] = LabMaterial.presets()
 var _specimen: MeshInstance3D = MeshInstance3D.new()
@@ -25,6 +32,14 @@ var _bar_material: ShaderMaterial = ShaderMaterial.new()
 var _walls: Array[MeshInstance3D] = [MeshInstance3D.new(), MeshInstance3D.new()]
 var _bar_arrow: Arrow3D = Arrow3D.new(Color(0.95, 0.95, 1.0), 0.018)
 var _delta_label: Label3D = Text3D.make(36)
+var _cube: MeshInstance3D = MeshInstance3D.new()
+var _cube_arrows: Array[Arrow3D] = []
+var _segments: Array[MeshInstance3D] = [MeshInstance3D.new(), MeshInstance3D.new()]
+var _segment_materials: Array[StandardMaterial3D] = [StandardMaterial3D.new(), StandardMaterial3D.new()]
+var _end_walls: Array[MeshInstance3D] = [MeshInstance3D.new(), MeshInstance3D.new()]
+var _b_arrow: Arrow3D = Arrow3D.new(Color(0.95, 0.95, 1.0), 0.02)
+var _b_marker: MeshInstance3D = MeshInstance3D.new()
+var _bar_label: Label3D = Text3D.make(34)
 
 
 func _init() -> void:
@@ -37,12 +52,21 @@ func _init() -> void:
 		ControlSpec.slider(&"P", "Axial load P", "kN", Units.KN, 0.0, 150.0, 1.0, 50.0e3).only_in([4, 5]),
 		ControlSpec.slider(&"L", "Bar length L", "m", 1.0, 0.5, 3.0, 0.1, 1.0).only_in([4, 6]),
 		ControlSpec.slider(&"d", "Bar diameter d", "mm", Units.MM, 10.0, 60.0, 1.0, 0.025, 0).only_in([4, 5, 6]),
-		ControlSpec.slider(&"dT", "Temperature change ΔT", "°C", 1.0, -60.0, 120.0, 1.0, 0.0, 0).only_in([6]),
+		ControlSpec.slider(&"dT", "Temperature change ΔT", "°C", 1.0, -60.0, 120.0, 1.0, 0.0, 0).only_in([6, INDETERMINATE]),
 		ControlSpec.choice(&"ends", "Bar ends", PackedStringArray(["Free", "Both fixed"]), 0).only_in([6]),
-		ControlSpec.slider(&"exaggeration", "Bench deformation drawn ×", "", 1.0, 1.0, 2000.0, 1.0, 500.0, 0).only_in([4, 5, 6]),
+		ControlSpec.slider(&"exaggeration", "Bench deformation drawn ×", "", 1.0, 1.0, 2000.0, 1.0, 500.0, 0).only_in([4, 5, 6, HOOKE, INDETERMINATE]),
+		ControlSpec.slider(&"sx", "σ_x", "MPa", Units.MPA, -200.0, 200.0, 1.0, 100.0e6, 0).only_in([HOOKE]),
+		ControlSpec.slider(&"sy", "σ_y", "MPa", Units.MPA, -200.0, 200.0, 1.0, -50.0e6, 0).only_in([HOOKE]),
+		ControlSpec.slider(&"sz", "σ_z", "MPa", Units.MPA, -200.0, 200.0, 1.0, 20.0e6, 0).only_in([HOOKE]),
+		ControlSpec.slider(&"PB", "Load at B", "kN", Units.KN, -200.0, 200.0, 1.0, 100.0e3, 0).only_in([INDETERMINATE]),
+		ControlSpec.slider(&"L1", "Segment AB length L₁", "m", 1.0, 0.1, 0.9, 0.05, 0.4).only_in([INDETERMINATE]),
+		ControlSpec.slider(&"d1", "Diameter d₁", "mm", Units.MM, 10.0, 50.0, 1.0, 0.03, 0).only_in([INDETERMINATE]),
+		ControlSpec.slider(&"d2", "Diameter d₂", "mm", Units.MM, 10.0, 50.0, 1.0, 0.02, 0).only_in([INDETERMINATE]),
 	]
 	_build_machine()
 	_build_bench()
+	_build_cube()
+	_build_indeterminate()
 
 
 func _build_machine() -> void:
@@ -101,6 +125,43 @@ func _build_bench() -> void:
 	add_child(_delta_label)
 
 
+func _build_cube() -> void:
+	var box := BoxMesh.new()
+	box.size = Vector3.ONE * CUBE_SIZE
+	_cube.mesh = box
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(0.85, 0.85, 0.8, 0.85)
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_cube.material_override = m
+	_cube.position = CUBE
+	add_child(_cube)
+	for i: int in 6:
+		var a := Arrow3D.new(Color(1.0, 0.45, 0.35), 0.012)
+		_cube_arrows.append(a)
+		add_child(a)
+
+
+## Bar A-B-C between walls, drawn 1.5x long and 4x thick, junction B marked.
+func _build_indeterminate() -> void:
+	var grey := StandardMaterial3D.new()
+	grey.albedo_color = Color(0.35, 0.37, 0.4)
+	for i: int in 2:
+		_segments[i].material_override = _segment_materials[i]
+		add_child(_segments[i])
+		var wall := BoxMesh.new()
+		wall.size = Vector3(0.12, 0.6, 0.5)
+		_end_walls[i].mesh = wall
+		_end_walls[i].material_override = grey
+		add_child(_end_walls[i])
+	var dot := SphereMesh.new()
+	dot.radius = 0.03
+	dot.height = 0.06
+	_b_marker.mesh = dot
+	add_child(_b_marker)
+	add_child(_b_arrow)
+	add_child(_bar_label)
+
+
 func _apply() -> void:
 	var material: LabMaterial = _materials[int(value(&"material"))]
 	curve = StressStrainCurve.new(material)
@@ -137,11 +198,77 @@ func _apply() -> void:
 	_bar_arrow.place(BENCH + Vector3(free_end, 0.0, 0.0), Vector3(0.15 + 0.35 * member.load / 150.0e3, 0.0, 0.0))
 	_bar_arrow.label.text = "P = " + Units.force(member.load)
 	_delta_label.text = "δ = %s,  σ = %s   (drawn ×%d)" % [Units.small_length(member.elongation()), Units.stress(member.stress()), int(k)]
-	var bench: bool = step() >= 4
+	var bench: bool = step() >= 4 and step() <= 6
 	for node: Node3D in [_bar, _walls[0], _delta_label]:
 		node.visible = bench
 	_walls[1].visible = step() == 6 and member.ends_fixed
 	_bar_arrow.visible = bench and step() != 6
+	_apply_cube(material, k)
+	_apply_indeterminate(material, k)
+
+
+## Generalized Hooke's law: an element under sigma_x, sigma_y, sigma_z, deformation exaggerated.
+func _apply_cube(material: LabMaterial, k: float) -> void:
+	hooke.material = material
+	hooke.sigma_x = value(&"sx")
+	hooke.sigma_y = value(&"sy")
+	hooke.sigma_z = value(&"sz")
+	var on: bool = step() == HOOKE
+	_cube.visible = on
+	_cube.scale = Vector3(1.0 + hooke.strain_x() * k, 1.0 + hooke.strain_y() * k, 1.0 + hooke.strain_z() * k)
+	var sigmas: Array[float] = [hooke.sigma_x, hooke.sigma_y, hooke.sigma_z]
+	var axes: Array[Vector3] = [Vector3.RIGHT, Vector3.UP, Vector3.BACK]
+	var ref: float = maxf(maxf(absf(sigmas[0]), absf(sigmas[1])), maxf(absf(sigmas[2]), 1.0))
+	for i: int in 6:
+		var axis: Vector3 = axes[i % 3] * (1.0 if i < 3 else -1.0)
+		var sigma: float = sigmas[i % 3]
+		var face: Vector3 = CUBE + axis * CUBE_SIZE / 2.0 * _cube.scale[i % 3]
+		var len: float = 0.3 * absf(sigma) / ref
+		if sigma >= 0.0:
+			_cube_arrows[i].place(face, axis * len)
+		else:
+			_cube_arrows[i].place_onto(face, -axis * len)
+		_cube_arrows[i].visible = on and absf(sigma) > 0.0
+		_cube_arrows[i].label.visible = i < 3
+		_cube_arrows[i].label.text = ["σx", "σy", "σz"][i % 3] + " = " + Units.stress(sigma)
+
+
+## Statically indeterminate bar: segments colored by their stress, B shifted by u_B (exaggerated).
+func _apply_indeterminate(material: LabMaterial, k: float) -> void:
+	bar.material = material
+	bar.load = value(&"PB")
+	bar.length_1 = value(&"L1")
+	bar.length_2 = 1.0 - bar.length_1
+	bar.diameter_1 = value(&"d1")
+	bar.diameter_2 = value(&"d2")
+	bar.temperature_change = value(&"dT")
+	var on: bool = step() == INDETERMINATE
+	for node: Node3D in [_segments[0], _segments[1], _end_walls[0], _end_walls[1], _b_marker, _b_arrow, _bar_label]:
+		node.visible = on
+	const DRAWN_LENGTH: float = 1.5
+	var start := BENCH + Vector3(-0.2, 0.0, 0.0)
+	var u_b: float = clampf(bar.displacement_b() * k, -0.3, 0.3)
+	var x_b: float = bar.length_1 * DRAWN_LENGTH + u_b
+	var lengths: Array[float] = [x_b, DRAWN_LENGTH - x_b]
+	var radii: Array[float] = [bar.diameter_1 * 2.0, bar.diameter_2 * 2.0]
+	var stresses: Array[float] = [bar.stress_1(), bar.stress_2()]
+	for i: int in 2:
+		var cyl := CylinderMesh.new()
+		cyl.top_radius = radii[i]
+		cyl.bottom_radius = radii[i]
+		cyl.height = maxf(lengths[i], 0.01)
+		_segments[i].mesh = cyl
+		_segments[i].rotation.z = PI / 2.0
+		_segments[i].position = start + Vector3((lengths[0] / 2.0) if i == 0 else (x_b + lengths[1] / 2.0), 0.0, 0.0)
+		var t: float = clampf(stresses[i] / material.yield_strength, -1.0, 1.0)
+		_segment_materials[i].albedo_color = Color(0.86, 0.86, 0.84).lerp(Color(0.85, 0.12, 0.1) if t > 0.0 else Color(0.1, 0.3, 0.9), absf(t))
+		_end_walls[i].position = start + Vector3(-0.06 if i == 0 else DRAWN_LENGTH + 0.06, 0.0, 0.0)
+	_b_marker.position = start + Vector3(x_b, 0.0, 0.0)
+	_b_arrow.place(_b_marker.position + Vector3(0.0, 0.0, 0.0), Vector3(signf(bar.load) * (0.15 + 0.3 * absf(bar.load) / 200.0e3), 0.0, 0.0))
+	_b_arrow.visible = on and bar.load != 0.0
+	_b_arrow.label.text = "P = " + Units.signed_force(bar.load)
+	_bar_label.text = "σ_AB = %s    σ_BC = %s    u_B = %s (drawn ×%d)" % [Units.stress(bar.stress_1()), Units.stress(bar.stress_2()), Units.small_length(bar.displacement_b()), int(k)]
+	_bar_label.position = start + Vector3(DRAWN_LENGTH / 2.0, 0.4, 0.0)
 
 
 ## The strain slider, stopped at fracture.
@@ -155,7 +282,7 @@ func _show_step() -> void:
 
 func step_titles() -> PackedStringArray:
 	return ["Tension test", "Hooke's law", "Yield to fracture", "Unloading", "Deformation PL/AE",
-			"Poisson's ratio", "Thermal stress"]
+			"Poisson's ratio", "Thermal stress", "Generalized Hooke's law", "Statically indeterminate"]
 
 
 func lesson_text() -> String:
@@ -196,9 +323,11 @@ func lesson_text() -> String:
 			t += F.try_this("pull steel to 5 %, then switch the machine to 'Unloaded': the specimen stays longer by the permanent set.")
 		4:
 			t += "For a bar in the elastic range, combine σ = P/A, ε = δ/L and σ = Eε:\n"
+			t += F.derivation("ε = δ/L, σ = P/A and σ = Eε give δ = PL/(AE). For several segments, or varying P, A, E: δ = Σ P_iL_i/(A_iE_i), or δ = ∫ P(x)dx/(A(x)E).")
 			t += F.equation("δ = P·L/(A·E)", "%s × %s / (%s × %s)" % [Units.force(member.load), Units.length(member.length), Units.area(member.area()), Units.modulus(member.material.youngs_modulus)], Units.small_length(member.elongation()))
 			t += F.equation("σ = P/A", "", Units.stress(member.stress()))
 			t += "The bar acts like a spring of stiffness k = AE/L = %s.\n" % F.value("%.1f MN/m" % (member.stiffness() / 1.0e6))
+			t += F.note("Saint-Venant's principle: σ = P/A holds away from where the load is applied (beyond about one bar width). Near holes, fillets and grooves the local stress is higher: σ_max = K·σ_ave with a stress concentration factor K from charts (≈ 3 for a small hole in a wide plate).")
 			t += F.note("The bench bar is drawn with its deformation exaggerated; the specimen on the left is drawn at true strain.")
 			t += F.try_this("double L: δ doubles. Double d: A is four times larger, so δ drops to a quarter.")
 		5:
@@ -225,6 +354,29 @@ func lesson_text() -> String:
 			t += F.equation("σ = −E·α·ΔT", "−%s × %.1f×10⁻⁶ × %s" % [Units.modulus(member.material.youngs_modulus), a * 1e6, Units.temperature_change(member.temperature_change)], Units.stress(held.stress()))
 			t += F.note("The thermal stress does not depend on L or on the cross-section, only on E·α·ΔT.")
 			t += F.try_this("fix both ends and heat steel by 100 °C: about −234 MPa, close to yield. Rails and bridges need expansion joints.")
+		HOOKE:
+			t += "A small element loaded on all three faces deforms in all three directions. Each stress stretches its own direction by σ/E and contracts the other two by ν·σ/E; superposing the three cases gives the [b]generalized Hooke's law[/b]:\n"
+			t += F.equation("ε_x = [σ_x − ν(σ_y + σ_z)]/E", "", Units.strain(hooke.strain_x()))
+			t += F.equation("ε_y = [σ_y − ν(σ_x + σ_z)]/E", "", Units.strain(hooke.strain_y()))
+			t += F.equation("ε_z = [σ_z − ν(σ_x + σ_y)]/E", "", Units.strain(hooke.strain_z()))
+			t += "Shear stresses add the shear strains γ = τ/G independently (they do not change normal strains in an isotropic material).\n"
+			t += "The change of volume per unit volume is the [b]dilatation[/b]:\n"
+			t += F.equation("e = ε_x + ε_y + ε_z = (1 − 2ν)(σ_x + σ_y + σ_z)/E", "", Units.strain(hooke.dilatation()))
+			t += F.equation("bulk modulus k = E/(3(1 − 2ν))", "e = −p/k under pressure p", Units.modulus(hooke.bulk_modulus()))
+			t += F.note("Since a material cannot expand under pressure, k > 0 requires ν < 0.5. Rubber (ν ≈ 0.5) is nearly incompressible.")
+			t += F.try_this("set σ_x = σ_y = σ_z = −100 MPa (hydrostatic pressure): the cube shrinks equally in all directions without changing shape.")
+		INDETERMINATE:
+			t += "The bar is held by walls at both ends, and a load P acts at B. The two wall reactions are two unknowns, but statics gives only one equation (R_A + R_C = P): the bar is [b]statically indeterminate[/b]. The missing equation comes from [b]compatibility[/b] of deformations — the total length cannot change:\n"
+			t += F.equation("equilibrium at B:  N₂ = N₁ − P", "")
+			t += F.equation("compatibility:  δ_AB + δ_BC = N₁f₁ + N₂f₂ + α·ΔT·L = 0", "f_i = L_i/(A_i·E)")
+			t += F.equation("N₁ = (P·f₂ − α·ΔT·L)/(f₁ + f₂)", "", Units.signed_force(bar.force_1()))
+			t += F.equation("N₂ = N₁ − P", "", Units.signed_force(bar.force_2()))
+			t += F.equation("σ_AB = N₁/A₁", "", Units.stress(bar.stress_1()))
+			t += F.equation("σ_BC = N₂/A₂", "", Units.stress(bar.stress_2()))
+			t += F.equation("u_B = N₁·f₁ + α·ΔT·L₁", "", Units.small_length(bar.displacement_b()))
+			t += "The [b]stiffer[/b] segment (smaller flexibility f) takes the larger share of the load. Heating adds compression to both segments because the walls stop the bar from growing.\n"
+			t += F.note("Method: (1) release one support to make the structure determinate, (2) compute the displacement there from the loads, (3) find the redundant reaction that cancels it. Same idea in torsion (ch. 3) and beams (ch. 9).")
+			t += F.try_this("make segment BC thicker: it becomes stiffer and the wall at C takes more of the load.")
 	return t
 
 
@@ -232,6 +384,8 @@ func fill_figures(figures: FigureArea) -> void:
 	var m: LabMaterial = curve.material
 	var eps: float = _applied_strain()
 	match step():
+		INDETERMINATE:
+			_fill_axial_force(figures)
 		0, 2, 3:
 			var p := figures.plot(0)
 			p.begin("Stress-strain diagram (%s)" % m.display_name, "ε (%)", "σ (MPa)")
@@ -277,6 +431,17 @@ func fill_figures(figures: FigureArea) -> void:
 			p.hline(-member.material.yield_strength * Units.MPA, Color(1.0, 0.4, 0.4), "−σ_Y")
 			probe.temperature_change = member.temperature_change
 			p.marker(Vector2(member.temperature_change, probe.stress() * Units.MPA), Color(1, 1, 1), "now")
+
+
+## Axial force diagram of the indeterminate bar (step function with a jump of P at B).
+func _fill_axial_force(figures: FigureArea) -> void:
+	var p := figures.plot(0)
+	p.begin("Axial force N(x): tension +, compression −", "x (m)", "N (kN)")
+	var n1: float = bar.force_1() * Units.KN
+	var n2: float = bar.force_2() * Units.KN
+	p.line(PackedVector2Array([Vector2(0.0, n1), Vector2(bar.length_1, n1), Vector2(bar.length_1, n2),
+			Vector2(bar.length_1 + bar.length_2, n2)]), Color(0.95, 0.65, 0.3), 3.0, true)
+	p.vline(bar.length_1, Color(1, 1, 1), "B")
 
 
 func _curve_points(eps_end: float) -> PackedVector2Array:

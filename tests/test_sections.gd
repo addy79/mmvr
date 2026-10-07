@@ -81,3 +81,16 @@ func test_vertical_axis_properties() -> void:
 	var ibeam := ISection.new(0.203, 0.203, 0.011, 0.00724)
 	assert_within_1pct(ibeam.moment_of_inertia_vertical(), 1.5342e-5, "I-beam I_v")
 	assert_within_1pct(ibeam.z_max(), 0.1015, "I-beam half flange")
+
+
+# Box 100 x 200 x 10 mm (numerical integration): A = 5.6e-3, I = 2.7787e-5, I_v = 8.9867e-6,
+# Q(0) = 1.76e-4, Q(50 mm) = 1.51e-4, A'(50 mm) = 1.8e-3, t = 20 mm in the webs.
+func test_box() -> void:
+	var s := BoxSection.new(0.1, 0.2, 0.01)
+	assert_within_1pct(s.area(), 5.6e-3, "A")
+	assert_within_1pct(s.moment_of_inertia(), 2.77867e-5, "I")
+	assert_within_1pct(s.moment_of_inertia_vertical(), 8.98667e-6, "I_v")
+	assert_within_1pct(s.first_moment(0.0), 1.76e-4, "Q(0)")
+	assert_within_1pct(s.first_moment(0.05), 1.51e-4, "Q(50)")
+	assert_within_1pct(s.area_beyond(0.05), 1.8e-3, "A'")
+	assert_within_1pct(s.width_at(0.0), 0.02, "two webs")

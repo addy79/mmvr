@@ -46,6 +46,12 @@ func section_modulus() -> float:
 	return moment_of_inertia() / y_max()
 
 
+## Plastic section modulus Z [m^3]: M_p = sigma_Y*Z (first moments of both halves about
+## the neutral axis, which for these doubly symmetric sections is the centroid).
+func plastic_modulus() -> float:
+	return 2.0 * first_moment(0.0)
+
+
 ## Section width t [m] cut by the horizontal line at height y.
 func width_at(_y: float) -> float:
 	return 0.0

@@ -9,4 +9,5 @@ static func all() -> Array[CrossSection]:
 		CircleSection.new(0.075),                     # d = 150 mm
 		TubeSection.new(0.08, 0.07),                  # 160 OD x 10 mm wall
 		ISection.new(0.203, 0.203, 0.011, 0.00724),   # W200x46.1 nominal
+		BoxSection.new(0.1, 0.2, 0.01),               # 100 x 200 x 10 mm box (HSS)
 	]

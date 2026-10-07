@@ -49,6 +49,48 @@ func yield_moment() -> float:
 	return material.yield_strength * section_modulus()
 
 
+# Plastic moment: the whole section at +-sigma_Y, M_p = sigma_Y*Z
+func plastic_moment() -> float:
+	return material.yield_strength * section.plastic_modulus()
+
+
+# Shape factor k = M_p/M_Y = Z/S
+func shape_factor() -> float:
+	return section.plastic_modulus() / section_modulus()
+
+
+## Elastic-perfectly-plastic moment-curvature relation, any section:
+# M(k) = -integral over the depth of sigma(y)*y*t(y) dy with sigma = clamp(-E*k*y, -sigma_Y, sigma_Y)
+# (midpoint rule). Equals E*I*k while elastic and tends to M_p.
+func moment_at_curvature(k: float) -> float:
+	const STEPS: int = 600
+	var c: float = section.y_max()
+	var dy: float = 2.0 * c / STEPS
+	var total: float = 0.0
+	for i: int in STEPS:
+		var y: float = -c + (i + 0.5) * dy
+		total -= stress_at_curvature(k, y) * y * section.width_at(y) * dy
+	return total
+
+
+# Elastic-perfectly-plastic fiber stress at curvature k: sigma = clamp(-E*k*y, -sigma_Y, sigma_Y)
+func stress_at_curvature(k: float, y: float) -> float:
+	var sy: float = material.yield_strength
+	return clampf(-material.youngs_modulus * k * y, -sy, sy)
+
+
+# Curvature at first yield: k_Y = sigma_Y/(E*c)
+func yield_curvature() -> float:
+	return material.yield_strength / (material.youngs_modulus * section.y_max())
+
+
+# Half-depth of the elastic core at curvature k: y_Y = eps_Y/k (capped at c)
+func elastic_core(k: float) -> float:
+	if k == 0.0:
+		return section.y_max()
+	return minf(material.yield_strength / (material.youngs_modulus * absf(k)), section.y_max())
+
+
 func factor_of_safety() -> float:
 	var sigma: float = max_stress()
 	return material.yield_strength / sigma if sigma > 0.0 else INF

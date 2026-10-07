@@ -13,7 +13,7 @@ const PLANK_LENGTH: float = 1.3
 const PLANK_DEPTH: float = 0.11
 const SAMPLES: int = 33
 const ARROWS: int = 11
-const SECTION_NAMES: PackedStringArray = ["Rectangle", "Circle", "Tube", "I-beam"]
+const SECTION_NAMES: PackedStringArray = ["Rectangle", "Circle", "Tube", "I-beam", "Box"]
 
 var model: SectionShear = SectionShear.new()
 
@@ -71,8 +71,7 @@ func _init() -> void:
 	_plank_material.set_shader_parameter("segment_length", PLANK_LENGTH)
 	_plank_material.set_shader_parameter("half_depth", PLANK_DEPTH * 1.5)
 	_plank_material.set_shader_parameter("curvature", 0.9)  # demonstration only, not computed
-	_plank_material.set_shader_parameter("moment_sign", 1.0)
-	_plank_material.set_shader_parameter("stress_ratio", 0.0)
+	_plank_material.set_shader_parameter("bending_ratio", 0.0)
 	for i: int in 3:
 		var plank := MeshInstance3D.new()
 		plank.material_override = _plank_material

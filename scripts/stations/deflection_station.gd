@@ -6,7 +6,7 @@ extends Station
 const LENGTH: float = 4.0
 const ORIGIN := Vector3(-2.0, 0.95, 0.0)
 const SUPPORT_NAMES: PackedStringArray = ["Simply supported", "Cantilever"]
-const SECTION_NAMES: PackedStringArray = ["Rectangle", "Circle", "Tube", "I-beam"]
+const SECTION_NAMES: PackedStringArray = ["Rectangle", "Circle", "Tube", "I-beam", "Box"]
 const MATERIAL_NAMES: PackedStringArray = ["Steel", "Aluminum", "Wood"]
 const LIMIT_RATIO: float = 360.0   ## serviceability limit L/360
 
