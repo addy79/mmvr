@@ -48,6 +48,11 @@ func moment_at(x: float) -> float:
 	return reaction_b() * (length - x)
 
 
+# |V|max = max(|R_A|, |R_B|): V is constant on each side of the load
+func max_shear() -> float:
+	return maxf(absf(reaction_a()), absf(reaction_b()))
+
+
 # M_max = P*a*b/L, at the load
 func max_moment() -> float:
 	return load * load_position * load_offset_from_b() / length
@@ -105,8 +110,7 @@ func shear_stress(x: float, y: float) -> float:
 
 # tau_max = |V|max*Q(0)/(I*t(0)); max at the neutral axis for all four supported sections
 func max_shear_stress() -> float:
-	var v_max: float = maxf(absf(reaction_a()), absf(reaction_b()))
-	return v_max * section.first_moment(0.0) / (section.moment_of_inertia() * section.width_at(0.0))
+	return max_shear() * section.first_moment(0.0) / (section.moment_of_inertia() * section.width_at(0.0))
 
 
 # FS = sigma_Y / sigma_max (INF when unloaded)

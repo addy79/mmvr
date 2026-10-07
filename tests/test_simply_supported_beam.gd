@@ -29,6 +29,8 @@ func test_shear_and_moment() -> void:
 	assert_within_1pct(beam.moment_at(1.0), 7500.0, "M(a)")
 	assert_within_1pct(beam.moment_at(3.0), 2500.0, "M(3)")
 	assert_within_1pct(beam.max_moment(), 7500.0, "M_max")
+	assert_within_1pct(beam.max_shear(), 7500.0, "|V|max = R_A")
+	assert_within_1pct(_beam(3.5).max_shear(), 8750.0, "|V|max = R_B = 10000*3.5/4")
 	assert_almost_eq(beam.moment_at(0.0), 0.0, 1e-9, "M(0) = 0")
 	assert_almost_eq(beam.moment_at(L), 0.0, 1e-9, "M(L) = 0")
 

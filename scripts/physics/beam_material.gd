@@ -13,6 +13,11 @@ func _init(p_name: String, p_youngs_modulus: float, p_yield_strength: float) -> 
 	yield_strength = p_yield_strength
 
 
+## The materials offered in the lab.
+static func presets() -> Array[BeamMaterial]:
+	return [steel(), aluminum(), wood()]
+
+
 ## Structural steel ASTM A36.
 static func steel() -> BeamMaterial:
 	return BeamMaterial.new("Steel (A36)", 200.0e9, 250.0e6)
