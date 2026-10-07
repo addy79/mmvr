@@ -13,6 +13,7 @@ var _prev: Button = Button.new()
 var _next: Button = Button.new()
 var _step_buttons: Array[Button] = []
 var _station: Station
+var _scroll: ScrollContainer
 
 
 func setup(font_size: int) -> void:
@@ -32,6 +33,7 @@ func setup(font_size: int) -> void:
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	box.add_child(scroll)
+	_scroll = scroll
 	var content := VBoxContainer.new()
 	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	content.add_theme_constant_override("separation", 10)
@@ -72,6 +74,11 @@ func show_station(station: Station) -> void:
 		_step_buttons.append(b)
 		_steps.add_child(b)
 	refresh()
+
+
+## Scrolls the lesson body (VR thumbstick), in pixels.
+func scroll_by(pixels: float) -> void:
+	_scroll.scroll_vertical += int(pixels)
 
 
 ## Re-renders the text and figures of the station's current step.

@@ -50,7 +50,6 @@ static func first_moment(meters3: float) -> String:
 const KN: float = 1.0e-3
 const MPA: float = 1.0e-6
 const MM: float = 1.0e3
-const GPA: float = 1.0e-9
 
 
 static func angle(radians: float) -> String:

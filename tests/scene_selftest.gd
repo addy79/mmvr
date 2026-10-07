@@ -42,6 +42,14 @@ func _run() -> void:
 		await _shot("ch%02d_3d.png" % station.chapter)
 		_hide_panels(false)
 		await _station_checks(station)
+	var head := get_viewport().get_camera_3d()
+	if head is XRCamera3D:
+		# --xr-preview: turn the head toward each 3D panel.
+		var screens: Array[Node] = _main.find_children("*", "XRToolsViewport2DIn3D", true, false)
+		for i: int in screens.size():
+			head.look_at((screens[i] as Node3D).global_position)
+			await _frames(8)
+			await _shot("xr_panel_%d.png" % i)
 	print("SELFTEST %s: %d failure(s)" % ["PASSED" if _failures == 0 else "FAILED", _failures])
 	get_tree().quit(_failures)
 

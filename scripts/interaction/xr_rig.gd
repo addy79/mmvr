@@ -1,7 +1,8 @@
 class_name XRRig
 extends XROrigin3D
 ## VR player built from XR Tools: hands, grip pickup on both hands (grabs the load knob),
-## trigger laser pointer on the right hand (UI panels), left-stick walk, right-stick turn.
+## trigger laser pointer on the right hand (UI panels), left-stick walk, right-stick turn
+## (left/right); main uses the right stick's up/down to scroll the lesson.
 ## Nodes use XR Tools' default names: its helpers look them up by name because nodes
 ## built in code have no scene owner.
 
@@ -13,6 +14,8 @@ const MOVE_DIRECT: PackedScene = preload("res://addons/godot-xr-tools/functions/
 const MOVE_TURN: PackedScene = preload("res://addons/godot-xr-tools/functions/movement_turn.tscn")
 const PLAYER_BODY: PackedScene = preload("res://addons/godot-xr-tools/player/player_body.tscn")
 
+var right_hand: XRController3D
+
 
 func _init() -> void:
 	var camera := XRCamera3D.new()
@@ -21,6 +24,7 @@ func _init() -> void:
 	add_child(camera)
 	var left: XRController3D = _controller(&"left_hand", "LeftHand", LEFT_HAND)
 	var right: XRController3D = _controller(&"right_hand", "RightHand", RIGHT_HAND)
+	right_hand = right
 	var walk: Node = MOVE_DIRECT.instantiate()
 	walk.set("strafe", true)
 	walk.set("max_speed", 1.5)

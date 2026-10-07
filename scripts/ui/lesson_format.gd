@@ -8,10 +8,6 @@ const TRY_COLOR: String = "#a6f0a6"
 const NOTE_COLOR: String = "#c8c8d0"
 
 
-static func heading(text: String) -> String:
-	return "[font_size=24][b]%s[/b][/font_size]\n" % text
-
-
 ## A displayed equation: symbolic form, then the numbers, then the result.
 static func equation(symbolic: String, substituted: String = "", result: String = "") -> String:
 	var s: String = "[indent][color=%s]%s[/color]" % [EQ_COLOR, symbolic]

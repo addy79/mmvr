@@ -20,6 +20,7 @@ const TOPIC_TITLES: PackedStringArray = ["1 · Stress", "2 · Axial loading", "3
 	"4 · Pure bending", "5 · Beams", "6 · Shearing stresses", "7 · Stress transformation",
 	"8 · Principal stresses", "9 · Beam deflection", "10 · Columns"]
 const XR_PLAYER_START := Vector3(0.0, 0.0, 2.2)
+const XR_SCROLL_SPEED: float = 900.0  ## lesson scroll at full stick [px/s]
 const CONTROL_PANEL: PackedScene = preload("res://scenes/control_panel.tscn")
 const LESSON_PANEL: PackedScene = preload("res://scenes/lesson_panel.tscn")
 ## Loaded only in VR: preloading it in desktop mode logs a "Viewport Texture must be set" error.
@@ -31,6 +32,7 @@ var control_panel: ControlPanel
 var lesson_panel: LessonPanel
 var xr_active: bool = false
 var camera: DesktopCamera
+var rig: XRRig
 
 var _overlay: CanvasLayer
 
@@ -130,22 +132,22 @@ func _start_xr() -> bool:
 
 
 func _build_xr_player() -> void:
-	var rig := XRRig.new()
+	rig = XRRig.new()
 	rig.position = XR_PLAYER_START
 	add_child(rig)
 	if not get_viewport().use_xr:
 		get_viewport().get_camera_3d().fov = 100.0  # preview: roughly a Quest's field of view
 	# Controls at arm's length on the left, the lesson on the right, clear of the bench.
-	var left := _screen(Vector2(0.62, 0.95), Vector2(620, 950), CONTROL_PANEL)
+	var left := _screen(Vector2(0.62, 1.05), Vector2(620, 1050), CONTROL_PANEL)
 	left.position = XR_PLAYER_START + Vector3(-0.95, 1.25, -0.25)
 	left.rotation = Vector3(deg_to_rad(-10.0), deg_to_rad(65.0), 0.0)
 	control_panel = left.get_scene_instance() as ControlPanel
 	control_panel.setup(TOPIC_TITLES, 22, "")
-	var right := _screen(Vector2(0.8, 1.05), Vector2(860, 1130), LESSON_PANEL)
+	var right := _screen(Vector2(0.9, 1.15), Vector2(900, 1150), LESSON_PANEL)
 	right.position = XR_PLAYER_START + Vector3(1.05, 1.35, -0.3)
 	right.rotation = Vector3(deg_to_rad(-8.0), deg_to_rad(-62.0), 0.0)
 	lesson_panel = right.get_scene_instance() as LessonPanel
-	lesson_panel.setup(22)
+	lesson_panel.setup(26)
 
 
 func _screen(meters: Vector2, pixels: Vector2, content: PackedScene) -> XRToolsViewport2DIn3D:
@@ -202,6 +204,15 @@ func _frame_desktop_view() -> void:
 		var x1: float = lesson_panel.position.x / window.x
 		free = Rect2(x0, 0.0, x1 - x0, 1.0)
 	camera.fit_view(station.frame_points(), free, station.view_direction())
+
+
+## VR: the right stick's up/down scrolls the lesson (left/right is snap turn).
+func _process(delta: float) -> void:
+	if rig == null:
+		return
+	var stick: float = rig.right_hand.get_vector2("primary").y
+	if absf(stick) > 0.3:
+		lesson_panel.scroll_by(-stick * XR_SCROLL_SPEED * delta)
 
 
 func _unhandled_input(event: InputEvent) -> void:
