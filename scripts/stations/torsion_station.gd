@@ -9,7 +9,12 @@ const WALL_X: float = -1.4
 const HEIGHT: float = 1.25
 const FACE_ARROWS: int = 5
 
+const INDETERMINATE: int = 5
+const THIN_WALLED: int = 6
+
 var shaft: TorsionShaft = TorsionShaft.new()
+var held: IndeterminateShaft = IndeterminateShaft.new()
+var thin: ThinWalledShaft = ThinWalledShaft.new()
 
 var _materials: Array[LabMaterial] = [LabMaterial.steel(), LabMaterial.aluminum()]
 var _mesh: MeshInstance3D = MeshInstance3D.new()
@@ -20,6 +25,9 @@ var _torque: MomentArrow3D = MomentArrow3D.new(Color(0.95, 0.95, 1.0), 0.3, 0.01
 var _face_arrows: Array[Arrow3D] = []
 var _phi_label: Label3D = Text3D.make(36)
 var _shape_key: String = ""
+var _mesh2: MeshInstance3D = MeshInstance3D.new()
+var _shader2: ShaderMaterial = ShaderMaterial.new()
+var _far_wall: MeshInstance3D = MeshInstance3D.new()
 
 
 func _init() -> void:
@@ -28,11 +36,16 @@ func _init() -> void:
 	_controls = [
 		ControlSpec.slider(&"T", "Torque T", "kN·m", Units.KN, -10.0, 10.0, 0.1, 2.0e3),
 		ControlSpec.slider(&"L", "Length L", "m", 1.0, 0.5, 2.8, 0.1, 1.5),
-		ControlSpec.slider(&"do", "Outer diameter d_o", "mm", Units.MM, 20.0, 150.0, 1.0, 0.06, 0),
+		ControlSpec.slider(&"do", "Outer diameter d_o", "mm", Units.MM, 20.0, 150.0, 1.0, 0.06, 0).only_in([0, 1, 2, 3, 4, INDETERMINATE]),
 		ControlSpec.slider(&"di", "Inner diameter d_i", "mm", Units.MM, 0.0, 140.0, 1.0, 0.0, 0).only_in([3, 4]),
 		ControlSpec.choice(&"material", "Material", PackedStringArray(["Steel", "Aluminum"]), 0),
 		ControlSpec.slider(&"f", "Rotation speed f", "Hz", 1.0, 1.0, 60.0, 1.0, 30.0, 0).only_in([4]),
 		ControlSpec.slider(&"exaggeration", "Twist drawn ×", "", 1.0, 1.0, 100.0, 1.0, 20.0, 0),
+		ControlSpec.slider(&"a", "Torque position L₁/L", "", 1.0, 0.1, 0.9, 0.05, 0.4).only_in([INDETERMINATE]),
+		ControlSpec.slider(&"d2", "Diameter of BC", "mm", Units.MM, 20.0, 150.0, 1.0, 0.04, 0).only_in([INDETERMINATE]),
+		ControlSpec.slider(&"bw", "Box width b", "mm", Units.MM, 40.0, 200.0, 1.0, 0.1, 0).only_in([THIN_WALLED]),
+		ControlSpec.slider(&"bh", "Box depth h", "mm", Units.MM, 30.0, 200.0, 1.0, 0.06, 0).only_in([THIN_WALLED]),
+		ControlSpec.slider(&"bt", "Wall thickness t", "mm", Units.MM, 2.0, 15.0, 0.5, 0.005, 1).only_in([THIN_WALLED]),
 	]
 	var wall := MeshInstance3D.new()
 	var wall_mesh := BoxMesh.new()
@@ -44,9 +57,20 @@ func _init() -> void:
 	wall.material_override = grey
 	add_child(wall)
 	_shader.shader = TWIST_SHADER
+	_shader2.shader = TWIST_SHADER
 	_mesh.material_override = _shader
+	_mesh2.material_override = _shader2
 	_mesh.position = Vector3(WALL_X, HEIGHT, 0.0)
 	add_child(_mesh)
+	add_child(_mesh2)
+	var far := BoxMesh.new()
+	far.size = Vector3(0.2, 0.9, 0.7)
+	_far_wall.mesh = far
+	var glass := StandardMaterial3D.new()
+	glass.albedo_color = Color(0.5, 0.55, 0.6, 0.35)
+	glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_far_wall.material_override = glass  # see-through so the shaft stays visible
+	add_child(_far_wall)
 	var lever_material := StandardMaterial3D.new()
 	lever_material.albedo_color = Color(0.55, 0.45, 0.3)
 	var ghost_material := StandardMaterial3D.new()
@@ -72,6 +96,90 @@ func _init() -> void:
 
 
 func _apply() -> void:
+	match step():
+		INDETERMINATE:
+			_apply_held()
+		THIN_WALLED:
+			_apply_thin()
+		_:
+			_apply_free()
+	_far_wall.visible = step() == INDETERMINATE
+	_mesh2.visible = step() == INDETERMINATE
+	for a: Arrow3D in _face_arrows:
+		a.visible = a.visible and step() >= 1 and step() <= 4
+
+
+func _build(mesh: MeshInstance3D, shader: ShaderMaterial, section: CrossSection, length: float, at_x: float) -> void:
+	mesh.mesh = BeamMeshBuilder.build(SectionProfile.for_section(section), length)
+	mesh.position = Vector3(at_x, HEIGHT, 0.0)
+	shader.set_shader_parameter("shaft_length", length)
+	shader.set_shader_parameter("stress_ratio", 1.0)
+
+
+## Lever and torque arrow at x, the lever turned by the drawn angle.
+func _place_lever(x: float, drawn: float, torque: float) -> void:
+	for lever: MeshInstance3D in [_wheel, _ghost_lever]:
+		lever.position = Vector3(x + 0.03, HEIGHT, 0.0)
+	_wheel.rotation.x = drawn
+	_torque.position = Vector3(x + 0.2, HEIGHT, 0.0)
+	_torque.set_moment(signf(torque))
+	_torque.label.text = "T = " + Units.moment(torque)
+	_torque.label.position = Vector3(0.0, -0.45, 0.0)
+	_phi_label.position = Vector3(x, HEIGHT + 0.85, 0.0)
+
+
+## Shaft fixed at both ends, torque at B: two segments twisting up to phi_B and back.
+func _apply_held() -> void:
+	held.torque = value(&"T")
+	held.length_1 = value(&"a") * value(&"L")
+	held.length_2 = value(&"L") - held.length_1
+	held.radius_1 = value(&"do") / 2.0
+	held.radius_2 = value(&"d2") / 2.0
+	held.material = _materials[int(value(&"material"))]
+	var key: String = "held %.4f %.4f %.3f %.3f" % [held.radius_1, held.radius_2, held.length_1, held.length_2]
+	if key != _shape_key:
+		_shape_key = key
+		_build(_mesh, _shader, CircleSection.new(held.radius_1 * DRAW), held.length_1, WALL_X)
+		_build(_mesh2, _shader2, CircleSection.new(held.radius_2 * DRAW), held.length_2, WALL_X + held.length_1)
+		var r_max: float = maxf(held.radius_1, held.radius_2) * DRAW
+		_shader.set_shader_parameter("outer_radius", r_max)
+		_shader2.set_shader_parameter("outer_radius", r_max)
+	var drawn: float = clampf(held.rotation_b() * value(&"exaggeration"), -PI, PI)
+	_shader.set_shader_parameter("twist_start", 0.0)
+	_shader.set_shader_parameter("twist_end", drawn)
+	_shader2.set_shader_parameter("twist_start", drawn)
+	_shader2.set_shader_parameter("twist_end", 0.0)
+	_far_wall.position = Vector3(WALL_X + value(&"L") + 0.1, HEIGHT, 0.0)
+	_place_lever(WALL_X + held.length_1, drawn, held.torque)
+	_phi_label.text = "φ_B = %s  (drawn ×%d)" % [Units.angle(held.rotation_b()), int(value(&"exaggeration"))]
+	for a: Arrow3D in _face_arrows:
+		a.visible = false
+
+
+## Thin-walled box shaft: constant shear flow around the wall.
+func _apply_thin() -> void:
+	thin.torque = value(&"T")
+	thin.length = value(&"L")
+	thin.width = value(&"bw")
+	thin.depth = value(&"bh")
+	thin.thickness = value(&"bt")
+	thin.material = _materials[int(value(&"material"))]
+	var key: String = "thin %.4f %.4f %.4f %.3f" % [thin.width, thin.depth, thin.thickness, thin.length]
+	if key != _shape_key:
+		_shape_key = key
+		_build(_mesh, _shader, BoxSection.new(thin.width * DRAW, thin.depth * DRAW, thin.thickness * DRAW), thin.length, WALL_X)
+		_shader.set_shader_parameter("outer_radius", Vector2(thin.width, thin.depth).length() / 2.0 * DRAW)
+	var drawn: float = clampf(thin.angle_of_twist() * value(&"exaggeration"), -PI, PI)
+	_shader.set_shader_parameter("twist_start", 0.0)
+	_shader.set_shader_parameter("twist_end", drawn)
+	_place_lever(WALL_X + thin.length, drawn, thin.torque)
+	_phi_label.text = "φ = %s, τ = %s  (drawn ×%d)" % [Units.angle(thin.angle_of_twist()), Units.stress(thin.shear_stress()), int(value(&"exaggeration"))]
+	for a: Arrow3D in _face_arrows:
+		a.visible = false
+
+
+## Cantilever shaft (steps 1-5).
+func _apply_free() -> void:
 	var r_o: float = value(&"do") / 2.0
 	shaft.torque = value(&"T")
 	shaft.length = value(&"L")
@@ -83,21 +191,14 @@ func _apply() -> void:
 		_shape_key = key
 		var section: CrossSection = CircleSection.new(r_o * DRAW) if shaft.inner_radius <= 0.0 \
 				else TubeSection.new(r_o * DRAW, shaft.inner_radius * DRAW)
-		_mesh.mesh = BeamMeshBuilder.build(SectionProfile.for_section(section), shaft.length)
-		_shader.set_shader_parameter("shaft_length", shaft.length)
+		_build(_mesh, _shader, section, shaft.length, WALL_X)
 		_shader.set_shader_parameter("outer_radius", r_o * DRAW)
 	var drawn_twist: float = clampf(shaft.angle_of_twist() * value(&"exaggeration"), -PI, PI)
+	_shader.set_shader_parameter("twist_start", 0.0)
 	_shader.set_shader_parameter("twist_end", drawn_twist)
-	_shader.set_shader_parameter("stress_ratio", 1.0)  # full color at the surface, tau ~ rho inside
-
 	var end_x: float = WALL_X + shaft.length
 	# Lever on the free end turns with the end section; the ghost shows where it started.
-	for lever: MeshInstance3D in [_wheel, _ghost_lever]:
-		lever.position = Vector3(end_x + 0.03, HEIGHT, 0.0)
-	_wheel.rotation.x = drawn_twist
-	_torque.position = Vector3(end_x + 0.2, HEIGHT, 0.0)
-	_torque.set_moment(signf(shaft.torque))
-	_torque.label.text = "T = " + Units.moment(shaft.torque).replace("kN·m", "kN·m")
+	_place_lever(end_x, drawn_twist, shaft.torque)
 	# Shear stress on the end face along the vertical radius: tangential, length ~ rho.
 	for i: int in FACE_ARROWS:
 		var rho: float = shaft.outer_radius * (i + 1) / FACE_ARROWS
@@ -105,32 +206,17 @@ func _apply() -> void:
 		var at := Vector3(end_x + 0.004, HEIGHT + rho * DRAW, 0.0)
 		_face_arrows[i].place(at, Vector3(0.0, 0.0, -0.35 * tau / maxf(shaft.max_shear_stress(), 1.0)))
 	_phi_label.text = "φ = %s  (drawn ×%d)" % [Units.angle(shaft.angle_of_twist()), int(value(&"exaggeration"))]
-	_phi_label.position = Vector3(end_x, HEIGHT + 0.85, 0.0)
-	_torque.label.position = Vector3(0.0, -0.45, 0.0)
-
-
-func _show_step() -> void:
-	for a: Arrow3D in _face_arrows:
-		a.visible = a.visible and step() >= 1
-
-
-func refresh() -> void:
-	super()
-	_show_step()
-
-
-func set_control(id: StringName, new_value: float) -> void:
-	super(id, new_value)
-	_show_step()
 
 
 func set_step(index: int) -> void:
+	_step = clampi(index, 0, step_titles().size() - 1)
 	_apply()
-	super(index)
+	changed.emit()
 
 
 func step_titles() -> PackedStringArray:
-	return ["Deformation", "Torsion formula", "Angle of twist", "Hollow shafts", "Power & design"]
+	return ["Deformation", "Torsion formula", "Angle of twist", "Hollow shafts", "Power & design",
+			"Statically indeterminate", "Thin-walled shafts"]
 
 
 func lesson_text() -> String:
@@ -146,6 +232,7 @@ func lesson_text() -> String:
 			t += F.try_this("reverse the torque (negative T): the helices lean the other way.")
 		1:
 			t += "In the elastic range τ = G·γ, so the shear stress is also proportional to ρ: zero on the axis, largest at the surface (colors and the arrows on the end face).\n"
+			t += F.derivation("Plane sections rotate rigidly, so γ = ρφ/L; elastic: τ = Gγ = (Gφ/L)ρ. Equilibrium: T = ∫ρ·τ dA = (Gφ/L)∫ρ² dA = (Gφ/L)·J. Eliminating Gφ/L gives τ = Tρ/J and φ = TL/(JG).")
 			t += F.equation("τ = T·ρ/J", "torsion formula")
 			t += F.equation("J = π·c⁴/2", "polar moment of inertia", J)
 			t += F.equation("τ_max = T·c/J", "%s × %s / %s" % [Units.moment(absf(shaft.torque)), Units.small_length(shaft.outer_radius), J], Units.stress(shaft.max_shear_stress()))
@@ -174,11 +261,40 @@ func lesson_text() -> String:
 			t += F.equation("FS = τ_Y/τ_max", "", Units.factor(shaft.factor_of_safety()))
 			t += F.equation("c_min = (2T/(π·τ_all))^(1/3)", "solid shaft", Units.small_length(shaft.required_solid_radius(tau_all)))
 			t += F.try_this("for a fixed power, a faster shaft needs less torque (T = P/2πf): that is why motors run fast and gearboxes slow down to high torque.")
+		INDETERMINATE:
+			t += "Now the shaft is fixed to walls at [b]both ends[/b] and the torque T acts at B. Statics gives T_A + T_C = T: one equation, two unknowns. [b]Compatibility[/b]: the rotation of B computed from either side must be the same, i.e. the two twists cancel:\n"
+			t += F.equation("φ_AB + φ_BC = T_A·g₁ − T_C·g₂ = 0", "g_i = L_i/(J_i·G)")
+			t += F.equation("T_A = T·g₂/(g₁ + g₂)", "", Units.moment(held.torque_a()))
+			t += F.equation("T_C = T·g₁/(g₁ + g₂)", "", Units.moment(held.torque_c()))
+			t += F.equation("τ_max,AB = T_A·c₁/J₁", "", Units.stress(held.max_shear_1()))
+			t += F.equation("τ_max,BC = T_C·c₂/J₂", "", Units.stress(held.max_shear_2()))
+			t += F.equation("φ_B = T_A·g₁", "", Units.angle(held.rotation_b()))
+			t += "The stiffer segment (short, thick) carries most of the torque. The twist angle rises from A to B and falls back to zero at C (figure).\n"
+			t += F.try_this("move B toward A: the short segment AB becomes very stiff and takes almost all of T.")
+		THIN_WALLED:
+			t += "For a hollow section of any shape with a thin wall, assume the shear stress is uniform through the thickness and parallel to the wall. Equilibrium of a piece of wall shows that the [b]shear flow[/b] q = τ·t is the same all the way around the closed section:\n"
+			t += F.derivation("T = ∮ q·r ds = q·∮ r ds = 2q·𝒜, where 𝒜 is the area enclosed by the wall's centerline (r ds is twice the area of the thin triangle from the center to ds).")
+			t += F.equation("𝒜 = (b − t)(h − t)", "", Units.area(thin.enclosed_area()))
+			t += F.equation("q = T/(2𝒜)", "", "%.1f kN/m" % (thin.shear_flow() / 1e3))
+			t += F.equation("τ = T/(2t·𝒜)", "", Units.stress(thin.shear_stress()))
+			t += F.equation("φ = (T·L/(4𝒜²G))·∮ds/t", "∮ds/t = 2(a + b)/t", Units.angle(thin.angle_of_twist()))
+			t += F.note("Where the wall is thinner, τ is larger (q constant). Open thin sections (a slit tube, an I-beam) are far weaker in torsion: they cannot carry a circulating shear flow.")
+			t += F.try_this("halve the wall thickness: τ doubles and φ doubles; enlarging the enclosed area is much more effective.")
 	return t
 
 
 func fill_figures(figures: FigureArea) -> void:
 	match step():
+		INDETERMINATE:
+			var l1: float = held.length_1
+			var l: float = l1 + held.length_2
+			var pt := figures.plot(0)
+			pt.begin("Internal torque T(x)", "x (m)", "T (kN·m)")
+			pt.line(PackedVector2Array([Vector2(0.0, held.torque_a() * Units.KN), Vector2(l1, held.torque_a() * Units.KN),
+					Vector2(l1, -held.torque_c() * Units.KN), Vector2(l, -held.torque_c() * Units.KN)]), Color(1.0, 0.6, 0.3), 3.0, true)
+			var pp := figures.plot(1)
+			pp.begin("Rotation of the sections φ(x)", "x (m)", "φ (°)")
+			pp.line(PackedVector2Array([Vector2.ZERO, Vector2(l1, rad_to_deg(held.rotation_b())), Vector2(l, 0.0)]), Color(0.6, 0.8, 1.0), 3.0)
 		0:
 			var p := figures.plot(0)
 			p.begin("Shear strain across the radius", "ρ (mm)", "γ (×10⁻⁶)")

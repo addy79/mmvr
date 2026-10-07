@@ -67,6 +67,8 @@ func _station_checks(station: Station) -> void:
 			_expect(station, 7, {}, "545×10⁻⁶", "ch2: generalized Hooke ε_x")
 		3:
 			_expect(station, 1, {}, "47.16 MPa", "ch3: τ_max = Tc/J")
+			_expect(station, 5, {&"a": 0.4, &"L": 1.5, &"do": 0.06, &"d2": 0.04}, "1.77 kN·m", "ch3: indeterminate T_A")
+			_expect(station, 6, {&"bw": 0.1, &"bh": 0.06, &"bt": 0.005}, "38.28 MPa", "ch3: thin-walled τ")
 		4:
 			_expect(station, 2, {}, "15.00 MPa", "ch4: σ_m = Mc/I")
 		5:

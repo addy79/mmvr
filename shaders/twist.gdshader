@@ -1,10 +1,12 @@
 shader_type spatial;
-// Shaft under torsion: each cross-section turns by phi(x) = twist_end * x/L about the axis.
+// Shaft under torsion: each cross-section turns about the axis by phi(x), linear from
+// twist_start at x = 0 to twist_end at x = L.
 // Longitudinal lines and rings are painted in the undeformed (material) coordinates, so
 // they turn into helices; color shows tau = tau_max * rho/c (computed on the CPU side as
 // stress_ratio = tau_max / color limit). No mechanics here beyond interpolation.
 
-uniform float twist_end = 0.0;      // drawn angle of twist at x = L [rad]
+uniform float twist_start = 0.0;    // drawn rotation of the section at x = 0 [rad]
+uniform float twist_end = 0.0;      // drawn rotation at x = L [rad]
 uniform float shaft_length = 1.5;   // L [m]
 uniform float outer_radius = 0.03;  // c [m]
 uniform float stress_ratio = 1.0;   // tau_max / color limit
@@ -16,7 +18,7 @@ varying vec3 rest;
 
 void vertex() {
 	rest = VERTEX;
-	float phi = twist_end * clamp(VERTEX.x / shaft_length, 0.0, 1.0);
+	float phi = mix(twist_start, twist_end, clamp(VERTEX.x / shaft_length, 0.0, 1.0));
 	float c = cos(phi);
 	float s = sin(phi);
 	VERTEX.yz = vec2(c * VERTEX.y - s * VERTEX.z, s * VERTEX.y + c * VERTEX.z);
