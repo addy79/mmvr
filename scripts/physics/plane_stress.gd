@@ -114,6 +114,18 @@ func mohr_safety(ultimate_tension: float, ultimate_compression: float) -> float:
 	return max_normal_safety(ultimate_tension, ultimate_compression)
 
 
+## Failure boundary of the maximum-normal-stress criterion: the square -UC..UT on both axes.
+static func max_normal_boundary(ut: float, uc: float) -> PackedVector2Array:
+	return PackedVector2Array([Vector2(ut, ut), Vector2(-uc, ut), Vector2(-uc, -uc), Vector2(ut, -uc), Vector2(ut, ut)])
+
+
+## Failure boundary of Mohr's criterion: the Rankine square cut by straight lines in the
+## quadrants where the principal stresses have opposite signs.
+static func mohr_boundary(ut: float, uc: float) -> PackedVector2Array:
+	return PackedVector2Array([Vector2(ut, ut), Vector2(0, ut), Vector2(-uc, 0), Vector2(-uc, -uc),
+			Vector2(0, -uc), Vector2(ut, 0), Vector2(ut, ut)])
+
+
 # Maximum-distortion-energy criterion: FS = sigma_Y/sigma_vm
 func von_mises_safety(yield_strength: float) -> float:
 	var vm: float = von_mises()

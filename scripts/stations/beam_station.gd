@@ -204,11 +204,14 @@ func lesson_text() -> String:
 		1:
 			t += "Cut the beam at x (cyan knob) and keep the left part. To stay in equilibrium the cut face must carry an internal [b]shear force V[/b] and [b]bending moment M[/b].\n"
 			t += F.note("Sign convention (Beer & Johnston): on the left part's face, positive V acts downward and positive M is counterclockwise; positive M makes the beam sag.")
-			t += F.equation("V(x) = R_A − w·x − P·[x > a]", "", Units.signed_force(beam.shear_at(x)))
-			t += F.equation("M(x) = R_A·x − w·x²/2 − P·(x − a)·[x > a]", "", Units.moment(beam.moment_at(x)))
+			t += "With [b]singularity functions[/b] ⟨x − a⟩ⁿ (equal to (x − a)ⁿ for x > a and 0 otherwise) one expression covers the whole beam:\n"
+			t += F.equation("V(x) = R_A − w·x − P·⟨x − a⟩⁰", "", Units.signed_force(beam.shear_at(x)))
+			t += F.equation("M(x) = R_A·x − w·x²/2 − P·⟨x − a⟩¹", "", Units.moment(beam.moment_at(x)))
 			t += "\nThe diagrams behind the beam plot V and M everywhere. Read them with the two key relations:\n"
+			t += F.derivation("Equilibrium of a slice dx: ΣF_y gives V − (V + dV) − w·dx = 0, so dV/dx = −w; ΣM gives (M + dM) − M − V·dx + w·dx²/2 = 0, so dM/dx = V.")
 			t += F.equation("dV/dx = −w", "slope of the V diagram is the load intensity")
 			t += F.equation("dM/dx = V", "M peaks where V crosses zero")
+			t += F.equation("M(x) − M(0) = ∫₀ˣ V dx", "area under V from 0 to the cut", Units.moment(beam.shear_area(0.0, x)))
 			t += "A point load makes V [b]jump[/b] by P; M then has a corner. Here |M| is largest at x = %s: %s.\n" % [Units.length(beam.max_moment_position()), F.value(Units.moment(beam.max_moment()))]
 			t += F.try_this("set w > 0 and slide the cut: V now changes linearly, M becomes a parabola, and the area under V between two cuts equals the change in M.")
 		2:
@@ -264,6 +267,17 @@ func lesson_text() -> String:
 			t += F.equation("S_min = |M|max/σ_all", "%s / %s" % [Units.moment(absf(beam.max_moment())), Units.stress(allowable)], Units.first_moment(s_min))
 			t += "Chosen section: %s, S = %s → %s\n" % [SectionText.describe(s), Units.first_moment(s_have), F.ok_or_fail(s_have >= s_min, "adequate" if s_have >= s_min else "too small")]
 			t += F.equation("Shear check: τ_max = V·Q/(I·t)", "", Units.stress(beam.max_shear_stress()))
+			t += "\n[b]Selecting a section[/b]: among the sections that are adequate (S ≥ S_min), choose the lightest — the smallest area:\n"
+			t += "[table=4][cell][b]Section[/b]  [/cell][cell][b]S (10³ mm³)[/b]  [/cell][cell][b]A (mm²)[/b]  [/cell][cell][b]Adequate?[/b][/cell]"
+			var lightest: int = -1
+			for i: int in _sections.size():
+				var sec: CrossSection = _sections[i]
+				var ok: bool = sec.section_modulus() >= s_min
+				if ok and (lightest < 0 or sec.area() < _sections[lightest].area()):
+					lightest = i
+				t += "[cell]%s  [/cell][cell]%.1f  [/cell][cell]%.0f  [/cell][cell]%s[/cell]" % [SECTION_NAMES[i], sec.section_modulus() * 1e6, sec.area() * 1e6, F.ok_or_fail(ok, "yes" if ok else "no")]
+			t += "[/table]\n"
+			t += "Lightest adequate section: %s\n" % F.value(SECTION_NAMES[lightest] if lightest >= 0 else "none — reduce the load")
 			t += F.try_this("raise P and w until FS drops below 1 (colors set to ±σ_Y turn fully red/blue). Which section survives the most load for its area?")
 	return t
 

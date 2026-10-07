@@ -185,6 +185,7 @@ func lesson_text() -> String:
 			t += F.try_this("drag the cut from the top down to the middle and watch Q grow (figure).")
 		2:
 			t += "Equilibrium of the part beyond the cut, between two nearby sections, gives the [b]shear formula[/b]:\n"
+			t += F.derivation("Between sections x and x + dx the bending stresses on the part beyond the cut differ by dM·y/I; their resultant dM·Q/I must be balanced by the horizontal shear on the cut, τ·t·dx. With dM/dx = V: τ = VQ/(It).")
 			t += F.equation("τ = V·Q/(I·t)", "%s × %s / (%s × %s)" % [Units.force(model.shear_force), Units.first_moment(s.first_moment(y)), Units.inertia(s.moment_of_inertia()), Units.small_length(s.width_at(y))], Units.stress(model.shear_stress_at(y)))
 			t += F.equation("τ_max (neutral axis)", "", Units.stress(model.max_shear_stress()))
 			t += F.equation("τ_avg = V/A", "", Units.stress(model.average_shear_stress()))
@@ -209,6 +210,11 @@ func lesson_text() -> String:
 				t += F.equation("exact τ_max", "", Units.stress(model.max_shear_stress()))
 			else:
 				t += F.note("Select the I-beam cross-section to see the numbers.")
+			if s is ISection:
+				var i_sec := s as ISection
+				t += "In the thin flanges the shear flows [b]horizontally[/b]: cutting a flange at distance s from its tip, the part cut off has Q = t_f·s·(d − t_f)/2, so q grows linearly toward the web, where the flows from the two flange halves join the web (second figure):\n"
+				t += F.equation("q_flange(s) = V·t_f·s·(d − t_f)/(2I)", "at s = b_f/2", "%.1f kN/m" % (model.flange_shear_flow(i_sec.b_f / 2.0) / 1e3))
+			t += F.note("For sections without a vertical axis of symmetry (channels, angles) these flange shear flows create a twisting moment: the load must pass through the [b]shear center[/b], outside the web of a channel, to avoid twisting.")
 			t += F.try_this("select the I-beam and read the τ(y) plot: almost flat in the web, tiny in the flanges.")
 	return t
 
@@ -232,6 +238,11 @@ func fill_figures(figures: FigureArea) -> void:
 			_:
 				v = model.shear_stress_at(y) * Units.MPA
 		pts.append(Vector2(v, y * Units.MM))
+	if step() == 4 and s is ISection:
+		var i_sec := s as ISection
+		var pf := figures.plot(1)
+		pf.begin("Horizontal shear flow along a flange", "s from the tip (mm)", "q (kN/m)")
+		pf.line(PackedVector2Array([Vector2.ZERO, Vector2(i_sec.b_f / 2.0 * Units.MM, model.flange_shear_flow(i_sec.b_f / 2.0) / 1e3)]), Color(1.0, 0.75, 0.3), 3.0, true)
 	match step():
 		1:
 			p.begin("First moment Q(y)", "Q (10³ mm³)", "y (mm)")

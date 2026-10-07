@@ -97,3 +97,13 @@ func test_aisc_columns() -> void:
 	c.length = 1.0
 	assert_within_1pct(c.aisc_critical_stress(), 193.84e6, "inelastic range")
 	assert_within_1pct(c.aisc_allowable_load(), 580.35e3, "P_all short")
+
+
+# Every corner of the brittle failure boundaries is exactly at failure (FS = 1).
+func test_brittle_boundaries() -> void:
+	for p: Vector2 in PlaneStress.mohr_boundary(150.0e6, 600.0e6):
+		var fs: float = PlaneStress.new(maxf(p.x, p.y), minf(p.x, p.y), 0.0).mohr_safety(150.0e6, 600.0e6)
+		if not (p.x == 0.0 and p.y == 0.0):
+			assert_within_1pct(fs, 1.0, "Mohr corner")
+	for p: Vector2 in PlaneStress.max_normal_boundary(150.0e6, 600.0e6):
+		assert_within_1pct(PlaneStress.new(maxf(p.x, p.y), minf(p.x, p.y), 0.0).max_normal_safety(150.0e6, 600.0e6), 1.0, "Rankine corner")

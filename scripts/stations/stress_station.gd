@@ -189,6 +189,7 @@ func lesson_text() -> String:
 			t += F.equation("σ = P/A", "%s / %s" % [P, Units.area(model.rod_area())], Units.stress(model.normal_stress()))
 			t += "σ > 0 means [b]tension[/b] (the material is pulled apart), σ < 0 compression. Units: 1 Pa = 1 N/m², 1 MPa = 1 N/mm².\n"
 			t += F.note("This is the average stress. It is uniform only away from the ends (Saint-Venant's principle) and when P acts along the centroidal axis.")
+			t += F.note("In general the state of stress at a point needs six components on a small cube: σ_x, σ_y, σ_z and τ_xy, τ_yz, τ_zx (moment equilibrium of the cube forces τ_xy = τ_yx, etc.). A bar under axial load is the simplest case: only σ_x ≠ 0.")
 			t += "Compared with the yield strength σ_Y = %s, the rod is at %s of its strength.\n" % [Units.stress(model.material.yield_strength), F.value("%.0f %%" % (100.0 * model.normal_stress() / model.material.yield_strength))]
 			t += F.try_this("halve the diameter: the area drops to a quarter, so the stress becomes four times larger for the same P.")
 		1:
@@ -229,6 +230,7 @@ func lesson_text() -> String:
 			t += F.equation("rod:  σ_all·A", "", Units.force(p_rod))
 			t += F.equation("pin:  τ_all·n·A_pin", "", Units.force(p_pin))
 			t += F.equation("bearing:  σ_b,all·t·d_p", "", Units.force(p_brg))
+			t += F.note("Allowable-stress design (ASD) divides the strength by FS. Load-and-resistance-factor design (LRFD) instead checks γ_D·P_D + γ_L·P_L ≤ φ·P_U, with load factors γ > 1 and a resistance factor φ < 1, so uncertain live loads get a larger margin than well-known dead loads.")
 			t += "The connection is only as strong as its weakest mode: P_allow = %s. Applied P = %s → %s\n" % [F.value(Units.force(p_allow)), P, F.ok_or_fail(model.load <= p_allow, "safe" if model.load <= p_allow else "overloaded")]
 			t += F.try_this("find the cheapest change that raises P_allow: bigger pin, thicker eye, or thicker rod? The weakest mode decides.")
 	return t

@@ -77,6 +77,9 @@ func _station_checks(station: Station) -> void:
 			_expect(station, 2, {}, "3.75 MPa", "ch6: τ_max = 1.5 V/A")
 		7:
 			_expect(station, 2, {}, "70.00 MPa", "ch7: σ_max of B&J example 7.01")
+			_expect(station, 8, {}, "100.00 MPa", "ch7: hoop stress pr/t")
+			_expect(station, 9, {}, "118.68 MPa", "ch7: rosette σ_x")
+			_expect(station, 7, {&"sx": 80.0e6, &"sy": -200.0e6, &"txy": 0.0, &"material": 2.0}, "Mohr's criterion", "ch7: brittle criteria shown")
 		8:
 			_expect(station, 2, {}, "103.52 MPa", "ch8: bending stress at the top point")
 		9:
