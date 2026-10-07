@@ -16,6 +16,16 @@ func moment_of_inertia() -> float:
 	return 0.0
 
 
+## Second moment of area about the vertical centroidal axis [m^4].
+func moment_of_inertia_vertical() -> float:
+	return 0.0
+
+
+## Half-width: distance from the vertical axis to the extreme fiber [m].
+func z_max() -> float:
+	return 0.0
+
+
 ## Distance from the neutral axis to the extreme fiber, c = y_max [m].
 func y_max() -> float:
 	return 0.0

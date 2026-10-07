@@ -11,7 +11,7 @@ const MIN_LOAD: float = 1000.0
 const MAX_LOAD: float = 50000.0
 
 var sections: Array[CrossSection] = SectionPresets.all()
-var materials: Array[BeamMaterial] = BeamMaterial.presets()
+var materials: Array[LabMaterial] = LabMaterial.presets()
 var beam: SimplySupportedBeam = SimplySupportedBeam.new(
 		LENGTH, DEFAULT_LOAD, LENGTH / 2.0, sections[0], materials[0])
 

@@ -22,6 +22,15 @@ func moment_of_inertia() -> float:
 	return b * h * h * h / 12.0
 
 
+# I_z = h*b^3/12
+func moment_of_inertia_vertical() -> float:
+	return h * b * b * b / 12.0
+
+
+func z_max() -> float:
+	return b / 2.0
+
+
 # c = h/2
 func y_max() -> float:
 	return h / 2.0

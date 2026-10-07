@@ -66,3 +66,18 @@ func test_i_beam() -> void:
 	assert_within_1pct(s.width_at(0.0), 0.00724, "t(0) = web")
 	assert_within_1pct(s.first_moment(0.095), 1.2964e-4, "Q in flange")
 	assert_within_1pct(s.width_at(0.095), 0.203, "t in flange")
+
+
+# About the vertical axis:
+#   rectangle 100 x 200: I_v = 0.2*0.1^3/12 = 1.6667e-5 m^4, half-width 0.05 m
+#   circle/tube: same as about the horizontal axis
+#   I-beam: (2*0.011*0.203^3 + 0.181*0.00724^3)/12 = 1.5342e-5 m^4
+func test_vertical_axis_properties() -> void:
+	var rect := RectSection.new(0.1, 0.2)
+	assert_within_1pct(rect.moment_of_inertia_vertical(), 1.6667e-5, "rect I_v")
+	assert_within_1pct(rect.z_max(), 0.05, "rect half-width")
+	var circle := CircleSection.new(0.05)
+	assert_within_1pct(circle.moment_of_inertia_vertical(), circle.moment_of_inertia(), "circle")
+	var ibeam := ISection.new(0.203, 0.203, 0.011, 0.00724)
+	assert_within_1pct(ibeam.moment_of_inertia_vertical(), 1.5342e-5, "I-beam I_v")
+	assert_within_1pct(ibeam.z_max(), 0.1015, "I-beam half flange")

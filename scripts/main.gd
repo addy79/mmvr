@@ -44,7 +44,7 @@ func _ready() -> void:
 	for s: CrossSection in controller.sections:
 		names.append(s.display_name)
 	var material_names := PackedStringArray()
-	for m: BeamMaterial in controller.materials:
+	for m: LabMaterial in controller.materials:
 		material_names.append(m.display_name.get_slice(" ", 0))
 	panel.setup(names, material_names, BeamController.LENGTH,
 			BeamController.MIN_LOAD, BeamController.MAX_LOAD, not xr_active)

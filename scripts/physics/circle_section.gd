@@ -20,6 +20,15 @@ func moment_of_inertia() -> float:
 	return PI * pow(r, 4) / 4.0
 
 
+# Same about every diameter: pi*r^4/4
+func moment_of_inertia_vertical() -> float:
+	return moment_of_inertia()
+
+
+func z_max() -> float:
+	return r
+
+
 # c = r
 func y_max() -> float:
 	return r

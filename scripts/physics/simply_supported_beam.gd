@@ -1,124 +1,95 @@
 class_name SimplySupportedBeam
-extends RefCounted
-## Simply supported beam (pin at A, x = 0; roller at B, x = L) with one point load.
-## Sign conventions (Beer & Johnston): load P > 0 acts downward; V and M positive per the
-## standard convention (M > 0 sags); y measured upward from the neutral axis;
-## deflection v > 0 is DOWNWARD; sigma > 0 is tension.
-
-var length: float          ## L [m]
-var load: float            ## P [N], downward positive
-var load_position: float   ## a [m], distance from support A
-var section: CrossSection
-var material: BeamMaterial
+extends BeamModel
+## Pin at A (x = 0), roller at B (x = L); point load P at x = a plus uniform load w.
+## All results superpose the two load cases.
 
 
-func _init(p_length: float, p_load: float, p_load_position: float,
-		p_section: CrossSection, p_material: BeamMaterial) -> void:
-	length = p_length
-	load = p_load
-	load_position = p_load_position
-	section = p_section
-	material = p_material
-
-
-## b = L - a [m]
-func load_offset_from_b() -> float:
-	return length - load_position
-
-
-# R_A = P*b/L (moments about B)
+# R_A = P*b/L + w*L/2 (moments about B)
 func reaction_a() -> float:
-	return load * load_offset_from_b() / length
+	return load * load_offset_from_b() / length + distributed_load * length / 2.0
 
 
-# R_B = P*a/L (moments about A)
+# R_B = P*a/L + w*L/2 (moments about A)
 func reaction_b() -> float:
-	return load * load_position / length
+	return load * load_position / length + distributed_load * length / 2.0
 
 
-# V(x) = R_A for x <= a, V(x) = -R_B for x > a (the jump of P at x = a is assigned to the right).
+# V(x) = R_A - w*x - P*[x > a] (the jump of P at x = a is assigned to the right)
 func shear_at(x: float) -> float:
-	return reaction_a() if x <= load_position else -reaction_b()
+	return reaction_a() - distributed_load * x - (load if x > load_position else 0.0)
 
 
-# M(x) = R_A*x for x <= a, M(x) = R_B*(L - x) for x > a
+# M(x) = R_A*x - w*x^2/2 - P*(x - a)*[x > a]
 func moment_at(x: float) -> float:
-	if x <= load_position:
-		return reaction_a() * x
-	return reaction_b() * (length - x)
+	var m: float = reaction_a() * x - distributed_load * x * x / 2.0
+	if x > load_position:
+		m -= load * (x - load_position)
+	return m
 
 
-# |V|max = max(|R_A|, |R_B|): V is constant on each side of the load
+# |V| is largest at an end: V falls monotonically from R_A to -R_B
 func max_shear() -> float:
 	return maxf(absf(reaction_a()), absf(reaction_b()))
 
 
-# M_max = P*a*b/L, at the load
-func max_moment() -> float:
-	return load * load_position * load_offset_from_b() / length
+# M peaks under the load or where V = 0: x = R_A/w (left of a) or x = (R_A - P)/w (right of a)
+func max_moment_position() -> float:
+	var best: float = load_position
+	var w: float = distributed_load
+	if w > 0.0:
+		for x: float in [reaction_a() / w, (reaction_a() - load) / w]:
+			if x >= 0.0 and x <= length and absf(moment_at(x)) > absf(moment_at(best)):
+				best = x
+	return best
 
 
-# Elastic curve, downward positive:
-#   x <= a: v(x) = P*b*x*(L^2 - b^2 - x^2) / (6*E*I*L)
-#   x >  a: same formula mirrored (x -> L - x, b -> a):
-#           v(x) = P*a*(L - x)*(L^2 - a^2 - (L - x)^2) / (6*E*I*L)
+# Slope dv/dx (downward-positive v), superposed:
+#   point load, x <= a: P*b*(L^2 - b^2 - 3x^2) / (6EIL)
+#   point load, x >  a: -P*a*(L^2 - a^2 - 3(L - x)^2) / (6EIL)   (mirror image)
+#   uniform load:       w*(L^3 - 6Lx^2 + 4x^3) / (24EI)
+func slope_at(x: float) -> float:
+	var l: float = length
+	var a: float = load_position
+	var b: float = load_offset_from_b()
+	var ei: float = flexural_rigidity()
+	var theta: float = distributed_load * (l * l * l - 6.0 * l * x * x + 4.0 * x * x * x) / (24.0 * ei)
+	if x <= a:
+		theta += load * b * (l * l - b * b - 3.0 * x * x) / (6.0 * ei * l)
+	else:
+		var u: float = l - x
+		theta -= load * a * (l * l - a * a - 3.0 * u * u) / (6.0 * ei * l)
+	return theta
+
+
+# Elastic curve, downward positive, superposed:
+#   point load, x <= a: v(x) = P*b*x*(L^2 - b^2 - x^2) / (6EIL)
+#   point load, x >  a: same formula mirrored (x -> L - x, b -> a)
+#   uniform load:       v(x) = w*x*(L^3 - 2Lx^2 + x^3) / (24EI)
 func deflection_at(x: float) -> float:
 	var l: float = length
-	var b: float = load_offset_from_b()
 	var a: float = load_position
+	var b: float = load_offset_from_b()
+	var ei: float = flexural_rigidity()
+	var v: float = distributed_load * x * (l * l * l - 2.0 * l * x * x + x * x * x) / (24.0 * ei)
 	if x <= a:
-		return load * b * x * (l * l - b * b - x * x) / (6.0 * _flexural_rigidity() * l)
-	var xm: float = l - x
-	return load * a * xm * (l * l - a * a - xm * xm) / (6.0 * _flexural_rigidity() * l)
+		v += load * b * x * (l * l - b * b - x * x) / (6.0 * ei * l)
+	else:
+		var u: float = l - x
+		v += load * a * u * (l * l - a * a - u * u) / (6.0 * ei * l)
+	return v
 
 
-# Maximum deflection, in the longer segment where dv/dx = 0:
-#   a >= b: x_m = sqrt((L^2 - b^2)/3), v_max = P*b*(L^2 - b^2)^(3/2) / (9*sqrt(3)*E*I*L)
-#   a <  b: mirrored (b -> a, x_m measured from B)
+# v_max where dv/dx = 0. For downward loads the slope falls monotonically from
+# dv/dx(0) >= 0 to dv/dx(L) <= 0, so bisection on the exact slope finds it.
 func max_deflection_position() -> float:
-	var l: float = length
-	var a: float = load_position
-	var b: float = load_offset_from_b()
-	if a >= b:
-		return sqrt((l * l - b * b) / 3.0)
-	return l - sqrt((l * l - a * a) / 3.0)
-
-
-func max_deflection() -> float:
-	var l: float = length
-	var short: float = minf(load_position, load_offset_from_b())
-	return load * short * pow(l * l - short * short, 1.5) / (9.0 * sqrt(3.0) * _flexural_rigidity() * l)
-
-
-# Flexure formula: sigma = -M*y/I
-func bending_stress(x: float, y: float) -> float:
-	return -moment_at(x) * y / section.moment_of_inertia()
-
-
-# sigma_max = |M_max|*c/I
-func max_bending_stress() -> float:
-	return absf(max_moment()) * section.y_max() / section.moment_of_inertia()
-
-
-# Shear formula: tau = V*Q/(I*t)
-func shear_stress(x: float, y: float) -> float:
-	var t: float = section.width_at(y)
-	if t <= 0.0:
-		return 0.0
-	return shear_at(x) * section.first_moment(y) / (section.moment_of_inertia() * t)
-
-
-# tau_max = |V|max*Q(0)/(I*t(0)); max at the neutral axis for all four supported sections
-func max_shear_stress() -> float:
-	return max_shear() * section.first_moment(0.0) / (section.moment_of_inertia() * section.width_at(0.0))
-
-
-# FS = sigma_Y / sigma_max (INF when unloaded)
-func factor_of_safety() -> float:
-	var sigma: float = max_bending_stress()
-	return material.yield_strength / sigma if sigma > 0.0 else INF
-
-
-# EI [N*m^2]
-func _flexural_rigidity() -> float:
-	return material.youngs_modulus * section.moment_of_inertia()
+	var lo: float = 0.0
+	var hi: float = length
+	if slope_at(lo) <= 0.0 and slope_at(hi) >= 0.0:
+		return length / 2.0
+	for i: int in 60:
+		var mid: float = 0.5 * (lo + hi)
+		if slope_at(mid) > 0.0:
+			lo = mid
+		else:
+			hi = mid
+	return 0.5 * (lo + hi)

@@ -38,7 +38,7 @@ func _init() -> void:
 func show_beam(beam: SimplySupportedBeam) -> void:
 	_beam = beam
 	var s: CrossSection = beam.section
-	var m: BeamMaterial = beam.material
+	var m: LabMaterial = beam.material
 	var c: float = s.y_max()
 	var central: String = "   (= P·L³/48EI, load at midspan)" \
 			if is_equal_approx(beam.load_position, beam.length / 2.0) else ""

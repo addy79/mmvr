@@ -8,7 +8,7 @@ const P: float = 10000.0
 
 
 func _beam(a: float) -> SimplySupportedBeam:
-	return SimplySupportedBeam.new(L, P, a, RectSection.new(0.1, 0.2), BeamMaterial.steel())
+	return SimplySupportedBeam.new(L, P, a, RectSection.new(0.1, 0.2), LabMaterial.steel())
 
 
 # a = 1, b = 3: R_A = 10000*3/4 = 7500 N, R_B = 10000*1/4 = 2500 N
@@ -98,7 +98,7 @@ func test_shear_stress() -> void:
 # FS = 250 MPa / 11.25 MPa = 22.22
 func test_factor_of_safety() -> void:
 	assert_within_1pct(_beam(1.0).factor_of_safety(), 22.222, "FS")
-	var unloaded := SimplySupportedBeam.new(L, 0.0, 1.0, RectSection.new(0.1, 0.2), BeamMaterial.steel())
+	var unloaded := SimplySupportedBeam.new(L, 0.0, 1.0, RectSection.new(0.1, 0.2), LabMaterial.steel())
 	assert_eq(unloaded.factor_of_safety(), INF, "unloaded FS")
 
 
@@ -108,3 +108,50 @@ func test_load_at_support() -> void:
 	assert_within_1pct(beam.reaction_a(), P, "R_A = P")
 	assert_almost_eq(beam.max_moment(), 0.0, 1e-9, "M_max")
 	assert_almost_eq(beam.max_deflection(), 0.0, 1e-12, "v_max")
+
+
+func _udl_beam(w: float, p: float) -> SimplySupportedBeam:
+	var beam := SimplySupportedBeam.new(L, p, 1.0, RectSection.new(0.1, 0.2), LabMaterial.steel())
+	beam.distributed_load = w
+	return beam
+
+
+# Uniform load only, w = 5 kN/m: M_max = wL^2/8 = 10 kN*m at L/2,
+# v_max = 5wL^4/(384EI) = 5*5000*256/(384*1.3333e7) = 1.25e-3 m at L/2
+func test_uniform_load() -> void:
+	var beam := _udl_beam(5000.0, 0.0)
+	assert_within_1pct(beam.reaction_a(), 10000.0, "R_A = wL/2")
+	assert_within_1pct(beam.max_moment(), 10000.0, "wL^2/8")
+	assert_within_1pct(beam.max_moment_position(), 2.0, "at midspan")
+	assert_within_1pct(beam.max_deflection(), 1.25e-3, "5wL^4/384EI")
+	assert_within_1pct(beam.max_deflection_position(), 2.0, "at midspan")
+
+
+# P = 10 kN at a = 1 plus w = 5 kN/m:
+#   R_A = 7500 + 10000 = 17500 N, R_B = 2500 + 10000 = 12500 N
+#   V = 0 right of the load at x = (R_A - P)/w = 1.5 m: M = 17500*1.5 - 5000*1.5^2/2 - 10000*0.5 = 15625 N*m
+#   v_max = 1.9414e-3 m at x = 1.917 m (found by sampling the superposed curve)
+func test_point_plus_uniform_load() -> void:
+	var beam := _udl_beam(5000.0, 10000.0)
+	assert_within_1pct(beam.reaction_a(), 17500.0, "R_A")
+	assert_within_1pct(beam.reaction_b(), 12500.0, "R_B")
+	assert_within_1pct(beam.max_moment_position(), 1.5, "x where V = 0")
+	assert_within_1pct(beam.max_moment(), 15625.0, "M_max")
+	assert_within_1pct(beam.max_deflection(), 1.9414e-3, "v_max")
+	assert_within_1pct(beam.max_deflection_position(), 1.917, "x of v_max")
+
+
+# The slope is the derivative of the deflection (central difference check), and EI*v'' = -M.
+func test_slope_and_curvature_are_consistent() -> void:
+	var beam := _udl_beam(5000.0, 10000.0)
+	var h: float = 1e-4
+	for x: float in [0.4, 1.7, 3.2]:
+		var numeric: float = (beam.deflection_at(x + h) - beam.deflection_at(x - h)) / (2.0 * h)
+		assert_within_1pct(beam.slope_at(x), numeric, "dv/dx at %.1f" % x)
+		var curvature: float = (beam.slope_at(x + h) - beam.slope_at(x - h)) / (2.0 * h)
+		assert_within_1pct(beam.flexural_rigidity() * curvature, -beam.moment_at(x), "EI v'' = -M at %.1f" % x)
+
+
+# Shear flow q = VQ/I: 7500*5e-4/6.6667e-5 = 56250 N/m at the neutral axis, left of the load
+func test_shear_flow() -> void:
+	assert_within_1pct(_beam(1.0).shear_flow(0.5, 0.0), 56250.0, "q at NA")

@@ -5,7 +5,7 @@ extends PhysicsTestCase
 
 func _written() -> BeamDataTexture:
 	var data := BeamDataTexture.new()
-	data.write(SimplySupportedBeam.new(4.0, 10000.0, 1.0, RectSection.new(0.1, 0.2), BeamMaterial.steel()))
+	data.write(SimplySupportedBeam.new(4.0, 10000.0, 1.0, RectSection.new(0.1, 0.2), LabMaterial.steel()))
 	return data
 
 
@@ -38,5 +38,5 @@ func test_shear_and_moment_rows() -> void:
 # Unloaded beam: all zeros, no division by zero.
 func test_unloaded_beam_is_all_zero() -> void:
 	var data := BeamDataTexture.new()
-	data.write(SimplySupportedBeam.new(4.0, 0.0, 1.0, RectSection.new(0.1, 0.2), BeamMaterial.steel()))
+	data.write(SimplySupportedBeam.new(4.0, 0.0, 1.0, RectSection.new(0.1, 0.2), LabMaterial.steel()))
 	assert_eq(data.sample(50, 0), Color(0.0, 0.0, 0.0, 1.0))

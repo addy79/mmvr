@@ -1,0 +1,117 @@
+class_name EulerColumn
+extends RefCounted
+## Chapter 10: a column of length L under an axial load P applied with eccentricity e.
+## Buckling happens about the weak axis, the centroidal axis with the smaller I.
+
+enum Ends { PINNED_PINNED, FIXED_FREE, FIXED_PINNED, FIXED_FIXED }
+
+## Effective-length factors K (L_e = K*L), Beer & Johnston Fig. 10.18.
+const K_FACTORS: Array[float] = [1.0, 2.0, 0.699, 0.5]
+## Fixed-pinned first mode: k*L solves tan(kL) = kL.
+const FIXED_PINNED_KL: float = 4.4934
+
+var length: float = 3.0
+var ends: Ends = Ends.PINNED_PINNED
+var load: float = 50.0e3          ## P [N], compression positive
+var eccentricity: float = 0.0     ## e [m]
+var section: CrossSection = RectSection.new(0.05, 0.1)
+var material: LabMaterial = LabMaterial.steel()
+
+
+# I_min = smaller of the two centroidal moments of inertia
+func min_inertia() -> float:
+	return minf(section.moment_of_inertia(), section.moment_of_inertia_vertical())
+
+
+## Extreme-fiber distance measured across the weak axis (the c of the secant formula).
+func weak_axis_c() -> float:
+	if section.moment_of_inertia() <= section.moment_of_inertia_vertical():
+		return section.y_max()
+	return section.z_max()
+
+
+# L_e = K*L
+func effective_length() -> float:
+	return K_FACTORS[ends] * length
+
+
+# Radius of gyration about the weak axis: r = sqrt(I_min/A)
+func radius_of_gyration() -> float:
+	return sqrt(min_inertia() / section.area())
+
+
+# Slenderness ratio: L_e/r
+func slenderness() -> float:
+	return effective_length() / radius_of_gyration()
+
+
+# Euler's formula: P_cr = pi^2*E*I_min/L_e^2
+func critical_load() -> float:
+	var le: float = effective_length()
+	return PI * PI * material.youngs_modulus * min_inertia() / (le * le)
+
+
+# sigma_cr = P_cr/A = pi^2*E/(L_e/r)^2
+func critical_stress() -> float:
+	return critical_load() / section.area()
+
+
+# Slenderness where sigma_cr = sigma_Y: (L_e/r)_c = pi*sqrt(E/sigma_Y); stockier columns yield first
+func transition_slenderness() -> float:
+	return PI * sqrt(material.youngs_modulus / material.yield_strength)
+
+
+# FS against buckling = P_cr/P
+func buckling_safety() -> float:
+	return critical_load() / load if load > 0.0 else INF
+
+
+# Secant formula, lateral deflection: y_max = e*[sec(pi/2*sqrt(P/P_cr)) - 1] (INF at P >= P_cr)
+func max_deflection() -> float:
+	var arg: float = _secant_argument()
+	if arg >= PI / 2.0:
+		return INF
+	return eccentricity * (1.0 / cos(arg) - 1.0)
+
+
+# Secant formula: sigma_max = (P/A)*[1 + (e*c/r^2)*sec(pi/2*sqrt(P/P_cr))]
+func max_stress() -> float:
+	var arg: float = _secant_argument()
+	if arg >= PI / 2.0:
+		return INF
+	var r: float = radius_of_gyration()
+	return load / section.area() * (1.0 + eccentricity * weak_axis_c() / (r * r) / cos(arg))
+
+
+## First buckling mode at s = x/L (0 at the base), scaled to a peak of 1.
+func mode_shape(s: float) -> float:
+	match ends:
+		Ends.PINNED_PINNED:
+			return sin(PI * s)                       # v = sin(pi*x/L)
+		Ends.FIXED_FREE:
+			return 1.0 - cos(PI * s / 2.0)           # v = 1 - cos(pi*x/(2L))
+		Ends.FIXED_FIXED:
+			return (1.0 - cos(TAU * s)) / 2.0        # v = (1 - cos(2*pi*x/L))/2
+	return _fixed_pinned_shape(s) / _fixed_pinned_peak
+
+
+# Fixed (x = 0) / pinned (x = L): v = sin(kx) - kx + kL*(1 - cos(kx)), with tan(kL) = kL
+static func _fixed_pinned_shape(s: float) -> float:
+	var b: float = FIXED_PINNED_KL
+	return sin(b * s) - b * s + b * (1.0 - cos(b * s))
+
+
+## Peak of the unscaled fixed-pinned shape (at s ~ 0.4), found once by sampling.
+static var _fixed_pinned_peak: float = _sampled_peak()
+
+
+static func _sampled_peak() -> float:
+	var peak: float = 0.0
+	for i: int in 2001:
+		peak = maxf(peak, absf(_fixed_pinned_shape(i / 2000.0)))
+	return peak
+
+
+# pi/2*sqrt(P/P_cr) = (L_e/2)*sqrt(P/(E*I))
+func _secant_argument() -> float:
+	return PI / 2.0 * sqrt(maxf(load, 0.0) / critical_load())

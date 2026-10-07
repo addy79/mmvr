@@ -28,6 +28,15 @@ func moment_of_inertia() -> float:
 	return (b_f * d * d * d - (b_f - t_w) * h_w * h_w * h_w) / 12.0
 
 
+# I_z = 2*t_f*b_f^3/12 + h_w*t_w^3/12 (two flanges + web, all centred on the axis)
+func moment_of_inertia_vertical() -> float:
+	return (2.0 * t_f * b_f * b_f * b_f + _web_height() * t_w * t_w * t_w) / 12.0
+
+
+func z_max() -> float:
+	return b_f / 2.0
+
+
 # c = d/2
 func y_max() -> float:
 	return d / 2.0
