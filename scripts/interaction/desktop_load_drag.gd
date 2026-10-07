@@ -1,9 +1,8 @@
 class_name DesktopLoadDrag
 extends Node
-## Desktop stand-in for the VR grab: left-drag the load's knob along the beam, or nudge
-## the load with the arrow keys.
+## Desktop stand-in for the VR grab: left-drag the load's knob along the beam.
+## Clicks that miss the knob fall through to the camera (drag to look around).
 
-const NUDGE_SPEED: float = 0.8  ## [m/s]
 const RAY_LENGTH: float = 50.0
 
 var _camera: Camera3D
@@ -27,12 +26,6 @@ func _unhandled_input(event: InputEvent) -> void:
 	var motion := event as InputEventMouseMotion
 	if motion and _dragging:
 		_drag_to(motion.position)
-
-
-func _process(delta: float) -> void:
-	var axis: float = Input.get_axis("load_left", "load_right")
-	if axis != 0.0:
-		_load.move_slider(_load.slider_position + axis * NUDGE_SPEED * delta)
 
 
 func _knob_under(screen_point: Vector2) -> bool:

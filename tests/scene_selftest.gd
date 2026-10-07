@@ -77,6 +77,38 @@ func _run() -> void:
 	await _shot("05_overload.png")
 
 	if camera is DesktopCamera:
+		# Camera: physical W key (Z on AZERTY), left-drag on empty sky, scroll.
+		var start: Transform3D = camera.global_transform
+		var key := InputEventKey.new()
+		key.physical_keycode = KEY_W
+		key.pressed = true
+		Input.parse_input_event(key)
+		await _frames(20)
+		key = key.duplicate() as InputEventKey
+		key.pressed = false
+		Input.parse_input_event(key)
+		await _frames(2)
+		_check(camera.global_position.distance_to(start.origin) > 0.1, "forward key moves the camera")
+		var yaw_before: float = camera.rotation.y
+		_mouse_button(Vector2(40, 40), true)
+		var drag := InputEventMouseMotion.new()
+		drag.position = Vector2(140, 40)
+		drag.relative = Vector2(100, 0)
+		drag.button_mask = MOUSE_BUTTON_MASK_LEFT
+		Input.parse_input_event(drag)
+		await _frames(2)
+		_mouse_button(Vector2(140, 40), false)
+		await _frames(2)
+		_check(absf(camera.rotation.y - yaw_before + 0.4) < 0.01, "left-drag on the background turns the view")
+		var before_scroll: Vector3 = camera.global_position
+		var wheel := InputEventMouseButton.new()
+		wheel.button_index = MOUSE_BUTTON_WHEEL_UP
+		wheel.pressed = true
+		wheel.factor = 1.0
+		wheel.position = Vector2(40, 40)
+		Input.parse_input_event(wheel)
+		await _frames(2)
+		_check(camera.global_position.distance_to(before_scroll) > 0.3, "scroll moves the camera forward")
 		(camera as DesktopCamera).reset_view(board.to_global(Vector3(0.0, 0.0, 1.3)), board.global_position)
 		await _frames(3)
 		await _shot("06_formula_board.png")

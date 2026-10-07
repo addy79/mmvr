@@ -6,12 +6,15 @@
 - From the Godot editor: open the project and press F5 (main scene `scenes/main.tscn`).
 
 ### Desktop controls
+Keys are by position, so on an AZERTY keyboard "W A S D" are the keys printed Z Q S D
+(the hint on screen shows your keyboard's letters).
 | Input | Action |
 |---|---|
-| W A S D, Q / E, Shift | fly, down / up, faster (physical keys, AZERTY-safe) |
-| hold right mouse | look around |
+| W A S D (Z Q S D on AZERTY), Q / E (A / E), Shift | move, down / up, faster |
+| left- or right-drag on the background, or arrow keys | look around |
+| scroll wheel / two-finger swipe | move forward / back |
+| R | reset the view |
 | left-drag the yellow knob | slide the load P along the beam |
-| ← / → | nudge the load |
 | Tab | hide / show the control strip |
 | F12 | screenshot to `screenshots/` |
 

@@ -11,8 +11,6 @@ signal exaggeration_changed(factor: float)
 signal color_scale_changed(relative_to_yield: bool)
 
 const DEFAULT_EXAGGERATION: float = 50.0
-const DESKTOP_HINT: String = "WASD / Q E move · hold right mouse to look · "\
-		+ "drag the yellow knob (or ← →) to move the load · Tab hides this panel · F12 screenshot"
 
 var _section_buttons: Array[Button] = []
 var _material_buttons: Array[Button] = []
@@ -68,7 +66,11 @@ func setup(section_names: PackedStringArray, material_names: PackedStringArray,
 
 	if desktop:
 		var hint := Label.new()
-		hint.text = DESKTOP_HINT
+		var k := InputSetup.key_label
+		hint.text = ("Move: %s %s %s %s · up/down %s %s · drag the background (or arrow keys) to look · "
+				+ "scroll to zoom · %s resets the view · drag the yellow knob to move the load · "
+				+ "Tab hides this panel") % [k.call("move_forward"), k.call("move_left"), k.call("move_back"),
+				k.call("move_right"), k.call("move_up"), k.call("move_down"), k.call("reset_view")]
 		hint.add_theme_font_size_override("font_size", 13)
 		hint.modulate = Color(0.75, 0.8, 0.9)
 		hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
