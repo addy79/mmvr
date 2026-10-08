@@ -154,3 +154,47 @@ func required_inertia(limit: float) -> float:
 # EI [N*m^2]
 func flexural_rigidity() -> float:
 	return material.youngs_modulus * section.moment_of_inertia()
+
+
+# von Mises stress at (x, y) from bending and transverse shear: sigma_v = sqrt(sigma^2 + 3*tau^2)
+func von_mises(x: float, y: float) -> float:
+	return sqrt(pow(bending_stress(x, y), 2) + 3.0 * pow(shear_stress(x, y), 2))
+
+
+## Largest von Mises stress in the beam: sampled along the span (plus the supports, the
+## load and the largest-moment section) and through the depth, including both sides of a
+## flange-web junction (where the width jumps).
+func max_von_mises() -> float:
+	return _max_over_beam(false)
+
+
+## Largest maximum shear stress (what ANSYS calls "Maximum Shear Stress", the Tresca
+## measure): tau_max = sqrt((sigma/2)^2 + tau^2) at each point, same sampling.
+func max_combined_shear() -> float:
+	return _max_over_beam(true)
+
+
+func _max_over_beam(tresca: bool) -> float:
+	var c: float = section.y_max()
+	var ys := PackedFloat64Array()
+	for k: int in 21:
+		ys.append(c * k / 20.0)
+	if section is ISection:
+		var junction: float = c - (section as ISection).t_f
+		ys.append(junction - 1e-7)
+		ys.append(junction + 1e-7)
+	var xs := PackedFloat64Array([0.0, length - 1e-9, max_moment_position(), load_position - 1e-9, load_position + 1e-9])
+	for i: int in 41:
+		xs.append(length * i / 40.0)
+	var best: float = 0.0
+	for x: float in xs:
+		var xc: float = clampf(x, 0.0, length - 1e-9)
+		var m: float = moment_at(xc)
+		var v: float = shear_at(xc)
+		for y: float in ys:
+			var sigma: float = -m * y / section.moment_of_inertia()
+			var t: float = section.width_at(y)
+			var tau: float = v * section.first_moment(y) / (section.moment_of_inertia() * t) if t > 0.0 else 0.0
+			var measure: float = sqrt(sigma * sigma / 4.0 + tau * tau) if tresca else sqrt(sigma * sigma + 3.0 * tau * tau)
+			best = maxf(best, measure)
+	return best

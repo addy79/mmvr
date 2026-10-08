@@ -7,9 +7,16 @@ extends Node3D
 signal changed
 
 var chapter: int = 0
+## Lab experiment number (handout N°), 0 for a chapter bench.
+var lab: int = 0
 var title: String = ""
 var _controls: Array[ControlSpec] = []
 var _step: int = 0
+
+
+## "Chapter 5 · Beams" or "Lab 7 · Bending of beams and rods".
+func heading() -> String:
+	return ("Lab %d · %s" if lab > 0 else "Chapter %d · %s") % [lab if lab > 0 else chapter, title]
 
 
 func controls() -> Array[ControlSpec]:

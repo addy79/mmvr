@@ -65,3 +65,15 @@ func required_solid_radius(tau_all: float) -> float:
 # Power transmission: P = T*omega = 2*pi*f*T [W]
 func power_at(frequency: float) -> float:
 	return 2.0 * PI * frequency * torque
+
+
+## Torsion test with a lever: a weight F hung at arm r gives T = F*r, so the twist is linear
+## in F. Slope of the load-angle line:
+# dF/dphi = J*G/(r*L) [N/rad]
+func load_per_radian(arm: float) -> float:
+	return polar_moment() * material.shear_modulus() / (arm * length)
+
+
+# Shear modulus from a measured load-angle slope k [N/rad]: G = k*r*L/J
+func modulus_from_slope(slope_per_radian: float, arm: float) -> float:
+	return slope_per_radian * arm * length / polar_moment()

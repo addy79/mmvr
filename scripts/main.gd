@@ -19,6 +19,27 @@ const STATIONS: PackedStringArray = [
 const TOPIC_TITLES: PackedStringArray = ["1 · Stress", "2 · Axial loading", "3 · Torsion",
 	"4 · Pure bending", "5 · Beams", "6 · Shearing stresses", "7 · Stress transformation",
 	"8 · Principal stresses", "9 · Beam deflection", "10 · Columns"]
+## The course's lab experiments (handouts in "labs handouts/"); "" = no handout yet.
+const LAB_STATIONS: Dictionary[int, String] = {
+	1: "res://scripts/labs/lab01_specimen_stress.gd",
+	2: "res://scripts/labs/lab02_stress_strain.gd",
+	3: "res://scripts/labs/lab03_geometry_fea.gd",
+	4: "res://scripts/labs/lab04_signpost.gd",
+	5: "res://scripts/labs/lab05_torsion.gd",
+	6: "",
+	7: "res://scripts/labs/lab07_bending.gd",
+	8: "res://scripts/labs/lab08_loading_configurations.gd",
+	9: "res://scripts/labs/lab09_shear_moment.gd",
+	10: "res://scripts/labs/lab10_w_and_s_beams.gd",
+	11: "res://scripts/labs/lab11_narrow_hollow.gd",
+}
+const LAB_TITLES: Dictionary[int, String] = {
+	1: "Stress withstood by a specimen", 2: "Stress-strain curve, Young's modulus",
+	3: "Geometry and stress (ANSYS)", 4: "Signpost analysis (ANSYS)",
+	5: "Torsion: load-angle plot", 6: "No handout yet", 7: "Bending of beams and rods",
+	8: "Beam loading configurations", 9: "Shear force and bending moment",
+	10: "W and S beams (ANSYS)", 11: "Narrow and hollow beams",
+}
 const XR_PLAYER_START := Vector3(0.0, 0.0, 2.2)
 const XR_SCROLL_SPEED: float = 900.0  ## lesson scroll at full stick [px/s]
 const CONTROL_PANEL: PackedScene = preload("res://scenes/control_panel.tscn")
@@ -62,7 +83,7 @@ func load_station(index: int) -> void:
 		remove_child(station)
 		station.queue_free()
 	station_index = index
-	station = (load(STATIONS[index]) as Script).new() as Station
+	station = (load(station_path(index)) as Script).new() as Station
 	add_child(station)
 	if camera:
 		station.add_child(DesktopKnobDrag.new(camera))
@@ -73,6 +94,24 @@ func load_station(index: int) -> void:
 	if camera:
 		camera.release_view()
 		_frame_desktop_view()
+
+
+## Topic index -> script: the chapters first, then the labs in order.
+func station_path(index: int) -> String:
+	if index < STATIONS.size():
+		return STATIONS[index]
+	return LAB_STATIONS[LAB_STATIONS.keys()[index - STATIONS.size()]]
+
+
+func topic_count() -> int:
+	return STATIONS.size() + LAB_STATIONS.size()
+
+
+func lab_entries() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for n: int in LAB_STATIONS:
+		out.append({"number": n, "title": LAB_TITLES[n], "available": not LAB_STATIONS[n].is_empty()})
+	return out
 
 
 func _on_station_changed() -> void:
@@ -142,7 +181,7 @@ func _build_xr_player() -> void:
 	left.position = XR_PLAYER_START + Vector3(-0.95, 1.25, -0.25)
 	left.rotation = Vector3(deg_to_rad(-10.0), deg_to_rad(65.0), 0.0)
 	control_panel = left.get_scene_instance() as ControlPanel
-	control_panel.setup(TOPIC_TITLES, 22, "")
+	control_panel.setup(TOPIC_TITLES, lab_entries(), 22, "", true)
 	var right := _screen(Vector2(0.9, 1.15), Vector2(900, 1150), LESSON_PANEL)
 	right.position = XR_PLAYER_START + Vector3(1.05, 1.35, -0.3)
 	right.rotation = Vector3(deg_to_rad(-8.0), deg_to_rad(-62.0), 0.0)
@@ -171,7 +210,7 @@ func _build_desktop() -> void:
 	control_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	_overlay.add_child(control_panel)
 	var k := InputSetup.key_label
-	control_panel.setup(TOPIC_TITLES, 16, ("Move %s %s %s %s · up/down %s %s · drag the background or "
+	control_panel.setup(TOPIC_TITLES, lab_entries(), 16, ("Move %s %s %s %s · up/down %s %s · drag the background or "
 			+ "use the arrow keys to look · scroll to zoom · %s resets the view · drag the colored "
 			+ "knobs to interact · Tab hides the panels") % [k.call("move_forward"), k.call("move_left"),
 			k.call("move_back"), k.call("move_right"), k.call("move_up"), k.call("move_down"), k.call("reset_view")])

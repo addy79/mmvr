@@ -32,6 +32,11 @@ func moment_of_inertia_vertical() -> float:
 	return (h * b * b * b - (h - 2.0 * t) * bi * bi * bi) / 12.0
 
 
+# The two webs carry the shear: A_s = 2*t*h
+func shear_area() -> float:
+	return 2.0 * t * h
+
+
 func z_max() -> float:
 	return b / 2.0
 

@@ -85,7 +85,7 @@ func scroll_by(pixels: float) -> void:
 func refresh() -> void:
 	var s: int = _station.step()
 	var titles: PackedStringArray = _station.step_titles()
-	_title.text = "Chapter %d · %s — %s" % [_station.chapter, _station.title, titles[s]]
+	_title.text = "%s — %s" % [_station.heading(), titles[s]]
 	for i: int in _step_buttons.size():
 		_step_buttons[i].set_pressed_no_signal(i == s)
 	_prev.disabled = s == 0

@@ -66,6 +66,13 @@ func deflection_at(x: float) -> float:
 	return v
 
 
+# Shear deformation adds to the bending deflection (Timoshenko): dv_s/dx = V/(G*A_s), so at
+# the free end v_s = (P*a + w*L^2/2)/(G*A_s). Small unless the beam is short and deep.
+func shear_deflection_at_tip() -> float:
+	var g: float = material.shear_modulus() * section.shear_area()
+	return (load * load_position + distributed_load * length * length / 2.0) / g
+
+
 # Downward loads: the free end deflects most
 func max_deflection_position() -> float:
 	return length

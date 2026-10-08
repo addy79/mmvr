@@ -27,6 +27,11 @@ func moment_of_inertia_vertical() -> float:
 	return h * b * b * b / 12.0
 
 
+# Shear correction factor of a rectangle: A_s = 5A/6
+func shear_area() -> float:
+	return 5.0 * area() / 6.0
+
+
 func z_max() -> float:
 	return b / 2.0
 

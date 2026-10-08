@@ -30,6 +30,32 @@ every equation, and 2D figures (diagrams, σ-ε curve, Mohr's circle...).
 | 9 | Simply supported, cantilever or propped | curvature, integration & BCs, moment-area theorems, support conditions, superposition, stiffness design, statically indeterminate beams |
 | 10 | Column | stability, Euler (derivation), end conditions, slenderness, secant formula, design check, AISC column formulas |
 
+## Lab experiments
+Below the chapters, the left panel lists the course's lab experiments (handouts in
+`labs handouts/`), each marked **done** (green) or **to do** (amber), with a count. Open a lab
+and tick "I have done this lab" to mark it; the marks are saved on the device
+(`user://lab_progress.cfg`). Lab 6 has no handout yet, so it is listed greyed out. In VR the
+lists fold away after you pick a topic (▶ Show chapters and labs brings them back).
+
+Each lab bench follows its handout: objective and theory, the apparatus or ANSYS model,
+the handout's tables filled with **simulated** readings ("Ideal" = exact theory, "Realistic
+scatter" = instrument resolution plus a small repeatable error), the plots with line fits,
+and guidance for the report questions. Set the sliders to your own specimens and machine;
+use your own measurements in your report.
+
+| Lab | Bench | What it computes |
+|---|---|---|
+| 1 | MTTU tensile unit (pure Al, Al 5754-H111) | F = k·ΔL from the dial gauge, σ = F/(e·a), readings table, both materials to fracture |
+| 2 | MTTU, steel and aluminum | δ = L_up − ΔL, ε = δ/L0, σ-ε chart, line fit → E, why the MTTU's E is unreliable |
+| 3 | Finite element model (cuboid, cylinder, dog-bone) | real 2D FEM solve (Q4 plane stress): mesh, supports, von Mises stress and strain contours, shape comparison, mesh convergence and the shoulder singularity |
+| 4 | Signpost (ANSYS check) | base forces, combined stresses, von Mises, deflections, factor of safety, wind multiplier |
+| 5 | Torsion machine, Al and steel, two lengths | φ = FrL/(JG), load-angle tables and fits, G from the slope, effect of length |
+| 7 | Bar on two supports, dial at midspan | Fl³/(48EI) vs measured, ranking by I, brass E from the slope of F·l³/(48I) vs δ |
+| 8 | 500×20×4 bar: cantilever, simply supported, over-hanging | maximum deflections, the five load-deflection lines, ranking |
+| 9 | Shear force / bending moment device | balancing masses W1, W2 → Q and M at the cut, SFD/BMD, experiment vs theory |
+| 10 | W200×52 vs S250×52, fixed + connected, uniform load | Appendix C dimensions, deformation, flange stress, web shear, von Mises, which is stronger |
+| 11 | Cantilever: usual, narrow, hollow (walls d₁, d₂) | deflection with shear deformation, bending stress, VQ/It, ANSYS "Maximum Shear Stress" |
+
 Cross-sections: rectangle, circle, tube, W200×46.1 I-beam and a 100×200×10 box (HSS).
 Materials: A36 steel, 6061-T6 aluminum, Douglas fir, and gray cast iron (chapter 7).
 
@@ -65,11 +91,12 @@ The app also shows up on the headset under Library → Unknown sources → MMLab
 
 ## Tests
 ```bash
-./run_tests.sh                          # GUT unit tests of all physics (79 tests), headless
+./run_tests.sh                          # GUT unit tests of all physics (93 tests), headless
 ./run_tests.sh -gselect=test_euler      # only scripts whose name contains "test_euler"
 godot --path . -- --selftest            # windowed: every chapter and step + numeric checks + screenshots
 godot --path . -- --selftest --3d-shots # also saves a panel-free 3D view of every step
 godot --path . -- --selftest --chapter 7 # only one chapter
+godot --path . -- --selftest --lab 3     # only one lab
 godot --path . -- --xr-preview --selftest   # the VR layout, seen from the headset start pose
 ```
 The self-test's exit code is the number of failed checks. Errors you can ignore on a PC:
@@ -86,6 +113,7 @@ station knobs (AxisKnob) ───┴─> Station (one per chapter) ──change
   Every number shown anywhere comes from here.
 - `scripts/stations/`: one script per chapter (scene building, lesson text, figures) plus
   `Station` and `ControlSpec`.
+- `scripts/labs/`: one script per lab experiment, on the `LabStation` base (simulated readings).
 - `scripts/visualization/`: meshes, data texture, arrows, stress element, beam rig.
 - `scripts/interaction/`: knobs, desktop camera and drag, XR rig, input map.
 - `scripts/ui/`: panels, plots, Mohr's circle, BBCode lesson helpers, `Units` (the only

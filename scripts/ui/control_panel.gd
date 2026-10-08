@@ -1,13 +1,25 @@
 class_name ControlPanel
 extends PanelContainer
-## Topic picker plus the current station's inputs, built from its ControlSpecs. Shown on a
-## 3D screen in VR and docked on the left on desktop. Slider values are in display units;
-## ControlSpec converts to SI.
+## Topic picker (the chapters, then the lab experiments with their done / to-do status) plus
+## the current station's inputs, built from its ControlSpecs. Shown on a 3D screen in VR and
+## docked on the left on desktop. Slider values are in display units; ControlSpec converts to SI.
+## Topic indices: chapters first, then one per lab entry.
 
 signal topic_selected(index: int)
 signal control_changed(id: StringName, si_value: float)
 
+const DONE_COLOR := Color(0.5, 0.92, 0.55)
+const TODO_COLOR := Color(1.0, 0.78, 0.4)
+
 var _topic_buttons: Array[Button] = []
+var _labs: Array[Dictionary] = []
+var _lab_buttons: Array[Button] = []
+var _lab_summary: Label = Label.new()
+var _done_box: CheckBox = CheckBox.new()
+var _current_lab: int = 0
+var _topics: VBoxContainer = VBoxContainer.new()  ## chapter grid + lab list, can be folded away
+var _fold: Button = Button.new()
+var _fold_on_select: bool = false
 var _rows: VBoxContainer = VBoxContainer.new()
 var _station_title: Label = Label.new()
 var _captions: Dictionary[StringName, Label] = {}
@@ -16,7 +28,12 @@ var _sliders: Dictionary[StringName, HSlider] = {}
 var _choices: Dictionary[StringName, Array] = {}
 
 
-func setup(topic_titles: PackedStringArray, font_size: int, hint: String) -> void:
+## labs: one {number, title, available} per lab experiment; unavailable ones (no handout yet)
+## are listed but cannot be opened. fold_on_select hides the lists once a topic is picked
+## (VR, where the panel cannot show everything at once).
+func setup(topic_titles: PackedStringArray, labs: Array[Dictionary], font_size: int, hint: String, fold_on_select: bool = false) -> void:
+	_labs = labs
+	_fold_on_select = fold_on_select
 	theme = LabTheme.make(font_size)
 	var scroll := ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -26,6 +43,11 @@ func setup(topic_titles: PackedStringArray, font_size: int, hint: String) -> voi
 	box.add_theme_constant_override("separation", 6)
 	scroll.add_child(box)
 	box.add_child(_heading("MMLabVR · Mechanics of Materials"))
+	_fold.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_fold.pressed.connect(func() -> void: _set_folded(_topics.visible))
+	box.add_child(_fold)
+	_topics.add_theme_constant_override("separation", 6)
+	box.add_child(_topics)
 	var grid := GridContainer.new()
 	grid.columns = 2
 	var group := ButtonGroup.new()
@@ -39,10 +61,34 @@ func setup(topic_titles: PackedStringArray, font_size: int, hint: String) -> voi
 		b.pressed.connect(topic_selected.emit.bind(i))
 		_topic_buttons.append(b)
 		grid.add_child(b)
-	box.add_child(grid)
+	_topics.add_child(grid)
+	_topics.add_child(HSeparator.new())
+	_topics.add_child(_lab_summary)
+	_lab_summary.add_theme_color_override("font_color", Color(0.6, 0.85, 1.0))
+	var lab_list := VBoxContainer.new()
+	lab_list.add_theme_constant_override("separation", 3)
+	for i: int in labs.size():
+		var b := Button.new()
+		b.toggle_mode = true
+		b.button_group = group
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		b.disabled = not labs[i].available
+		b.pressed.connect(topic_selected.emit.bind(topic_titles.size() + i))
+		_lab_buttons.append(b)
+		_topic_buttons.append(b)
+		lab_list.add_child(b)
+	_topics.add_child(lab_list)
+	_set_folded(false)
+	_refresh_labs()
 	box.add_child(HSeparator.new())
 	_station_title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.45))
 	box.add_child(_station_title)
+	_done_box.text = "I have done this lab"
+	_done_box.toggled.connect(func(on: bool) -> void:
+		LabProgress.set_done(_current_lab, on)
+		_refresh_labs())
+	box.add_child(_done_box)
 	_rows.add_theme_constant_override("separation", 4)
 	box.add_child(_rows)
 	if not hint.is_empty():
@@ -57,9 +103,14 @@ func setup(topic_titles: PackedStringArray, font_size: int, hint: String) -> voi
 
 ## Rebuilds the input rows for a newly selected station.
 func show_station(station: Station, index: int) -> void:
+	if _fold_on_select:
+		_set_folded(true)
 	for i: int in _topic_buttons.size():
 		_topic_buttons[i].set_pressed_no_signal(i == index)
-	_station_title.text = "Chapter %d · %s" % [station.chapter, station.title]
+	_station_title.text = station.heading()
+	_current_lab = station.lab
+	_done_box.visible = station.lab > 0
+	_done_box.set_pressed_no_signal(station.lab > 0 and LabProgress.is_done(station.lab))
 	for child: Node in _rows.get_children():
 		child.queue_free()
 	_captions.clear()
@@ -95,6 +146,8 @@ func show_station(station: Station, index: int) -> void:
 				b.toggle_mode = true
 				b.button_group = group
 				b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+				b.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS  # long names must not widen the panel
+				b.tooltip_text = c.options[i]
 				b.pressed.connect(control_changed.emit.bind(c.id, float(i)))
 				buttons.append(b)
 				grid.add_child(b)
@@ -116,6 +169,26 @@ func sync(station: Station) -> void:
 			var buttons: Array = _choices[c.id]
 			for i: int in buttons.size():
 				(buttons[i] as Button).set_pressed_no_signal(i == int(c.value))
+
+
+## Lab list: "Lab 7 · Bending of beams · done" (green) or "· to do" (amber), and the count.
+func _refresh_labs() -> void:
+	var numbers := PackedInt32Array()
+	for i: int in _labs.size():
+		var lab: Dictionary = _labs[i]
+		numbers.append(lab.number)
+		var done: bool = LabProgress.is_done(lab.number)
+		var b: Button = _lab_buttons[i]
+		b.text = "Lab %d · %s · %s" % [lab.number, lab.title, "done" if done else "to do"]
+		for state: String in ["font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color"]:
+			b.add_theme_color_override(state, DONE_COLOR if done else TODO_COLOR)
+	var done_n: int = LabProgress.done_count(numbers)
+	_lab_summary.text = "Lab experiments · %d done, %d to do" % [done_n, _labs.size() - done_n]
+
+
+func _set_folded(folded: bool) -> void:
+	_topics.visible = not folded
+	_fold.text = "▶ Show chapters and labs" if folded else "▼ Hide chapters and labs"
 
 
 static func _heading(text: String) -> Label:

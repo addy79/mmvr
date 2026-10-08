@@ -3,6 +3,7 @@ extends Node
 ## drives inputs through the same paths as the student's controls, checks the lesson
 ## text, and saves screenshots.
 ## Run:  godot --path . -- --selftest      (exit code = number of failed checks)
+##       add --chapter N or --lab N to visit only one bench.
 
 var _main: Node3D
 var _failures: int = 0
@@ -18,32 +19,41 @@ func _ready() -> void:
 
 func _run() -> void:
 	await _frames(10)
-	var only: int = int(OS.get_cmdline_user_args()[OS.get_cmdline_user_args().find("--chapter") + 1]) if OS.get_cmdline_user_args().has("--chapter") else 0
-	for index: int in 10:
-		if only > 0 and index + 1 != only:
+	var args: PackedStringArray = OS.get_cmdline_user_args()
+	var only: int = int(args[args.find("--chapter") + 1]) if args.has("--chapter") else 0
+	var only_lab: int = int(args[args.find("--lab") + 1]) if args.has("--lab") else 0
+	for index: int in _main.call("topic_count"):
+		var path: String = _main.call("station_path", index)
+		if path.is_empty() or not ResourceLoader.exists(path):
 			continue
-		if not ResourceLoader.exists(_main.STATIONS[index]):
+		var is_lab: bool = index >= _main.STATIONS.size()
+		var number: int = index + 1 if not is_lab else int(path.get_file().substr(3, 2))
+		if (only > 0 or only_lab > 0) and not ((not is_lab and number == only) or (is_lab and number == only_lab)):
 			continue
 		_main.call("load_station", index)
 		await _frames(4)
 		var station: Station = _main.get("station")
+		var tag: String = ("lab%02d" % station.lab) if is_lab else ("ch%02d" % station.chapter)
 		for s: int in station.step_titles().size():
 			station.set_step(s)
 			await _frames(2)
 			var text: String = station.lesson_text()
-			_check(text.length() > 200, "ch%d step %d has lesson text" % [station.chapter, s + 1])
-			await _shot("ch%02d_step%d.png" % [station.chapter, s + 1])
+			_check(text.length() > 200, "%s step %d has lesson text" % [tag, s + 1])
+			await _shot("%s_step%d.png" % [tag, s + 1])
 			if OS.get_cmdline_user_args().has("--3d-shots"):
 				_hide_panels(true)
 				await _frames(2)
-				await _shot("ch%02d_step%d_3d.png" % [station.chapter, s + 1])
+				await _shot("%s_step%d_3d.png" % [tag, s + 1])
 				_hide_panels(false)
 		_hide_panels(true)
 		station.set_step(0)
 		await _frames(3)
-		await _shot("ch%02d_3d.png" % station.chapter)
+		await _shot("%s_3d.png" % tag)
 		_hide_panels(false)
-		await _station_checks(station)
+		if is_lab:
+			_lab_checks(station)
+		else:
+			await _station_checks(station)
 	var head := get_viewport().get_camera_3d()
 	if head is XRCamera3D:
 		# --xr-preview: turn the head toward each 3D panel.
@@ -91,6 +101,32 @@ func _station_checks(station: Station) -> void:
 			_expect(station, 6, {&"P": 50.0e3}, "119.98 kN", "ch10: AISC allowable load")
 			_expect(station, 0, {&"P": 300.0e3}, "buckled", "ch10: buckles above P_cr")
 			await _shot("ch10_buckled.png")
+
+
+## Lab benches: the numbers on the panels vs. hand calculations (defaults unless set here).
+func _lab_checks(station: Station) -> void:
+	match station.lab:
+		1:
+			_expect(station, 1, {&"n": 1.0}, "9.86 MPa", "lab1: one step, sigma = F/A")
+		2:
+			_expect(station, 3, {&"readings": 0.0}, "200.0 GPa", "lab2: ideal readings give E = 200 GPa")
+		3:
+			_expect(station, 2, {&"shape": 0.0}, "75000 N", "lab3: cuboid hand force E*d/L*A")
+			_expect(station, 6, {&"shape": 2.0}, "singularity", "lab3: mesh convergence shown")
+		4:
+			_expect(station, 3, {}, "8.63 MPa", "lab4: base von Mises")
+		5:
+			_expect(station, 1, {}, "5.13°", "lab5: aluminum twist at 15 N")
+		7:
+			_expect(station, 1, {}, "3.070 mm", "lab7: Fl^3/48EI for bar 1 at 20 N")
+		8:
+			_expect(station, 2, {}, "9.155 mm", "lab8: cantilever tip, 15 N at 250 mm")
+		9:
+			_expect(station, 2, {}, "0.446 N", "lab9: shear at the cut, 200 g at X2")
+		10:
+			_expect(station, 3, {}, "49.49 MPa", "lab10: W200x52 flange stress")
+		11:
+			_expect(station, 2, {}, "]55.6[", "lab11: usual bending stress 55.6 MPa")
 
 
 func _expect(station: Station, step: int, inputs: Dictionary, text: String, label: String) -> void:

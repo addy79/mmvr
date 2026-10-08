@@ -56,6 +56,30 @@ static func aluminum() -> LabMaterial:
 			Behavior.GRADUAL_YIELD, 0.0, 0.08, 0.17)
 
 
+## Commercially pure aluminum 1050-O (annealed): soft and very ductile (lab 1).
+static func pure_aluminum() -> LabMaterial:
+	return LabMaterial.new("Pure aluminum (1050-O)", 69.0e9, 28.0e6, 76.0e6, 0.33, 24.0e-6,
+			Behavior.GRADUAL_YIELD, 0.0, 0.25, 0.39)
+
+
+## Aluminum-magnesium alloy 5754 in the H111 temper (slightly strain-hardened) (lab 1).
+static func aluminum_h111() -> LabMaterial:
+	return LabMaterial.new("Aluminum 5754-H111", 70.0e9, 80.0e6, 190.0e6, 0.33, 23.7e-6,
+			Behavior.GRADUAL_YIELD, 0.0, 0.15, 0.20)
+
+
+## Stainless steel AISI 304 (lab 7's bars), E = 193 GPa as given in the handout.
+static func stainless_304() -> LabMaterial:
+	return LabMaterial.new("Stainless steel (AISI 304)", 193.0e9, 215.0e6, 505.0e6, 0.29, 17.3e-6,
+			Behavior.GRADUAL_YIELD, 0.0, 0.45, 0.55)
+
+
+## Yellow brass, cold-rolled (B&J appendix B) (lab 7's rod).
+static func brass() -> LabMaterial:
+	return LabMaterial.new("Brass (yellow, cold-rolled)", 105.0e9, 410.0e6, 510.0e6, 0.34, 20.9e-6,
+			Behavior.GRADUAL_YIELD, 0.0, 0.06, 0.08)
+
+
 ## Gray cast iron: brittle, much stronger in compression than in tension.
 static func cast_iron() -> LabMaterial:
 	var m := LabMaterial.new("Gray cast iron", 69.0e9, 170.0e6, 170.0e6, 0.25, 12.1e-6,

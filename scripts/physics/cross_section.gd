@@ -52,6 +52,12 @@ func plastic_modulus() -> float:
 	return 2.0 * first_moment(0.0)
 
 
+## Shear area A_s [m^2] for shear deflection (Timoshenko): gamma = V/(G*A_s). Rectangles use
+## 5/6 of A, thin-walled boxes the area of their webs; other sections default to A.
+func shear_area() -> float:
+	return area()
+
+
 ## Section width t [m] cut by the horizontal line at height y.
 func width_at(_y: float) -> float:
 	return 0.0

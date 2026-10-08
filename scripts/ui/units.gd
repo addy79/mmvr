@@ -82,3 +82,30 @@ static func temperature_change(kelvin: float) -> String:
 
 static func factor(value: float) -> String:
 	return "∞" if is_inf(value) else "%.2f" % value
+
+
+## Lab-scale values: small forces in N, readings in mm, fixed number of decimals.
+static func newtons(n: float, decimals: int = 1) -> String:
+	return "%s N" % fixed(n, decimals)
+
+
+static func mm(meters: float, decimals: int = 2) -> String:
+	return "%s mm" % fixed(meters * 1.0e3, decimals)
+
+
+## Plain number in mm without the unit (table cells).
+static func mm_value(meters: float, decimals: int = 2) -> String:
+	return fixed(meters * 1.0e3, decimals)
+
+
+static func mpa_value(pascals: float, decimals: int = 2) -> String:
+	return fixed(pascals * 1.0e-6, decimals)
+
+
+static func degrees(radians: float, decimals: int = 2) -> String:
+	return "%s°" % fixed(rad_to_deg(radians), decimals)
+
+
+## Number with exactly `decimals` decimals (String.num drops trailing zeros).
+static func fixed(v: float, decimals: int) -> String:
+	return ("%." + str(decimals) + "f") % v
