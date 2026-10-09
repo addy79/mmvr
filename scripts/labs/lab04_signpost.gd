@@ -25,7 +25,9 @@ func _init() -> void:
 	handout = "Lab Handout N°4 - Mechanical Analysis of a Signpost.docx"
 	_controls = [
 		ControlSpec.slider(&"wind", "Wind loads ×", "", 1.0, 0.5, 40.0, 0.5, 1.0, 1),
-		ControlSpec.choice(&"on_sign", "W_x2 acts on", PackedStringArray(["Post only", "Post and sign"]), 0),
+		ControlSpec.choice(&"on_sign", "W_x2 acts on", PackedStringArray(["Post only", "Post and sign"]), 1),
+		ControlSpec.slider(&"x1", "F_y1 position x1 (from the post)", "m", 1.0, 0.0, 4.0, 0.05, 2.0).only_in([1, 2]),
+		ControlSpec.slider(&"z1", "F_y1 height z1 (above the post)", "m", 1.0, 0.0, 2.5, 0.05, 1.25).only_in([1, 2]),
 		ControlSpec.slider(&"w", "Post width w (along x)", "m", 1.0, 0.1, 0.8, 0.01, 0.5),
 		ControlSpec.slider(&"t", "Thickness t (along y)", "m", 1.0, 0.1, 0.8, 0.01, 0.5),
 		ControlSpec.slider(&"exaggeration", "Deflection drawn ×", "", 1.0, 1.0, 500.0, 1.0, 100.0, 0),
@@ -67,6 +69,8 @@ func _init() -> void:
 func _apply() -> void:
 	post.wind_factor = value(&"wind")
 	post.wind_x_on_sign = value(&"on_sign") == 1.0
+	post.force_x = value(&"x1")
+	post.force_z = value(&"z1")
 	post.post_width = value(&"w")
 	post.thickness = value(&"t")
 	var k: float = value(&"exaggeration") * DRAW
@@ -85,23 +89,24 @@ func _apply() -> void:
 	sign_box.size = Vector3(post.sign_length, post.sign_height, post.thickness) * DRAW
 	# The rigid sign's center moves halfway between the post top and the sign's top edge.
 	var center: Vector2 = (Vector2(post.post_deflection(h1, 0), post.post_deflection(h1, 1)) + post.sign_top_displacement()) / 2.0
-	_sign.position = BASE + Vector3(center.x * k, (h1 + post.sign_height / 2.0) * DRAW, center.y * k)
+	_sign.position = BASE + Vector3(post.sign_offset * DRAW + center.x * k, (h1 + post.sign_height / 2.0) * DRAW, center.y * k)
 	var lean: Vector2 = Vector2(post.post_slope(h1, 0), post.post_slope(h1, 1)) * value(&"exaggeration")
-	_sign.rotation = Vector3(lean.y, 0.0, -lean.x)
+	_sign.rotation = Vector3(lean.y, -post.twist_angle() * value(&"exaggeration"), -lean.x)
 	var z_top: float = h1 + (post.sign_height if post.wind_x_on_sign else 0.0)
 	for i: int in _wind_x.size():
 		var z: float = z_top * (i + 1) / _wind_x.size()
 		var len: float = 0.05 + 0.3 * post.wind_x_at(z) / maxf(post.wind_x_at(z_top), 1.0)
-		var x_face: float = -post.post_width / 2.0 * DRAW + (post.post_deflection(minf(z, h1), 0) * k)
+		var x_face: float = (-post.post_width / 2.0 if z <= h1 else 0.0) * DRAW + (post.post_deflection(minf(z, h1), 0) * k)
 		_wind_x[i].place_onto(BASE + Vector3(x_face - 0.01, z * DRAW, 0.0), Vector3(len, 0.0, 0.0))
 		_wind_x[i].label.text = "W_x2 = %s·z N/m" % Units.fixed(post.wind_x_rate * post.wind_factor, 0)
 	var face_z: float = post.thickness / 2.0 * DRAW
-	_wind_y.place_onto(_sign.position + Vector3(0.0, 0.0, face_z), Vector3(0.0, 0.0, -0.3))
+	var at := Vector3((post.force_x - post.sign_offset) * DRAW, (post.force_z - post.sign_height / 2.0) * DRAW, face_z)
+	_wind_y.place_onto(_sign.position + at, Vector3(0.0, 0.0, -0.3))
 	_wind_y.label.text = "F_y1 = " + Units.newtons(post.base_shear_y(), 0)
 	_weight.place(_sign.position + Vector3(0.0, post.sign_height / 2.0 * DRAW + 0.3, 0.0), Vector3(0.0, -0.25, 0.0))
 	_weight.label.text = "W_z1·L = " + Units.newtons(post.sign_weight_per_length * post.sign_length, 0)
 	_label.text = "base: σ_max = %s\nsign top moves %s\n(drawn ×%d, model 1:5)" % [Units.stress(post.max_von_mises()),
-			Units.mm(post.sign_top_displacement().length()), int(value(&"exaggeration"))]
+			Units.mm(post.sign_corner_displacement().length()), int(value(&"exaggeration"))]
 
 
 func _show_step() -> void:
@@ -123,23 +128,28 @@ func lesson_text() -> String:
 			t += "ANSYS gives colored contours; an engineer always checks them with a [b]hand calculation[/b]. The post is a vertical cantilever fixed in its foundation: every load on it ends up as internal forces at the base, which is where the stresses are largest. This bench does that check with your numbers, so you know what ANSYS should say.\n"
 			t += handout_note()
 		1:
-			t += "Geometry (all structural steel): post %s × %s × %s high, sign %s long × %s high × %s thick, centered on top.\n" % [
-					Units.length(p.post_width), Units.length(p.thickness), Units.length(p.post_height), Units.length(p.sign_length), Units.length(p.sign_height), Units.length(p.thickness)]
+			t += "Geometry (all structural steel, handout figure 3): post %s × %s × %s high; sign b2 = %s long × %s high × %s thick on top of it, running from the post toward +x (its center is %s from the post's axis).\n" % [
+					Units.length(p.post_width), Units.length(p.thickness), Units.length(p.post_height), Units.length(p.sign_length), Units.length(p.sign_height), Units.length(p.thickness), Units.length(p.sign_offset)]
 			t += "Loads (z vertical, from the base):\n"
 			t += F.equation("W_z1 = 1340 N/m", "weight of the sign per unit length → %s in total" % Units.newtons(p.sign_weight_per_length * p.sign_length, 0))
-			t += F.equation("W_x2 = 700·z", "wind on the post along x, growing with height (taken in N/m at height z)")
-			t += F.equation("F_y1 = 3600 N", "wind on the face of the sign, along y")
+			t += F.equation("W_x2 = 700·z", "wind along x growing with height, from the base to the top of the sign (taken in N/m at height z)")
+			t += F.equation("F_y1 = 3600 N", "wind on the face of the sign, along y, at (x1, z1) = (%s, %s) on the sign" % [Units.length(p.force_x), Units.length(p.force_z)])
 			t += F.equation("F_z1 = 11000 N", "weight of the support (post)")
 			t += "In ANSYS: fixed support on the bottom face; the weights as forces on the top faces, F_y1 as a force on the sign's face, and W_x2 as a load defined by a function of z on the post's side face.\n"
-			t += F.note("Assumption here: W_x2 acts on the post's height; switch to 'Post and sign' if your model applies it over the sign too. The wind ×%s control scales both wind loads." % Units.fixed(p.wind_factor, 1))
+			t += F.note("The handout gives no values for x1 and z1; the default puts F_y1 at the sign's center (set them to what you use in ANSYS). The wind ×%s control scales both wind loads." % Units.fixed(p.wind_factor, 1))
 		2:
 			t += "Cut the post just above the foundation and write equilibrium of the part above the cut:\n"
 			t += F.equation("N = F_z1 + W_z1·L", "11000 + 1340 × %s" % Units.fixed(p.sign_length, 1), Units.newtons(p.base_axial_force(), 0) + " (compression)")
-			t += F.equation("V_x = ∫ W_x2 dz = 700·h²/2", "", Units.newtons(p.base_shear_x(), 0))
-			t += F.equation("M from W_x2 = ∫ 700·z·z dz = 700·h³/3", "", Units.moment(p.moment_x_at(0.0)))
+			var h: float = p.post_height + (p.sign_height if p.wind_x_on_sign else 0.0)
+			var m_weight: float = p.sign_weight_per_length * p.sign_length * p.sign_offset
+			t += F.equation("V_x = ∫ W_x2 dz = 700·h²/2", "h = %s" % Units.length(h), Units.newtons(p.base_shear_x(), 0))
+			t += F.equation("M from W_x2 = ∫ 700·z·z dz = 700·h³/3", "", Units.moment(p.moment_x_at(0.0) - m_weight))
+			t += F.equation("M from the sign's weight = W_z1·b2·(b2/2)", "%s × %s" % [Units.newtons(p.sign_weight_per_length * p.sign_length, 0), Units.length(p.sign_offset)], Units.moment(m_weight))
+			t += F.equation("M₁ (bending in the x-z plane, total)", "", Units.moment(p.moment_x_at(0.0)))
 			t += F.equation("V_y = F_y1", "", Units.newtons(p.base_shear_y(), 0))
-			t += F.equation("M from F_y1 = F_y1·(h1 + h2/2)", "%s × %s" % [Units.newtons(p.base_shear_y(), 0), Units.length(p.post_height + p.sign_height / 2.0)], Units.moment(p.moment_y_at(0.0)))
-			t += "The sign is centered, so its weight causes no bending and no torsion. A triangular load's resultant (700·h²/2) acts at 2h/3 from the base, which is where the h³/3 comes from.\n"
+			t += F.equation("M₂ from F_y1 = F_y1·(h1 + z1)", "%s × %s" % [Units.newtons(p.base_shear_y(), 0), Units.length(p.post_height + p.force_z)], Units.moment(p.moment_y_at(0.0)))
+			t += F.equation("torque T = F_y1·x1", "%s × %s" % [Units.newtons(p.base_shear_y(), 0), Units.length(p.force_x)], Units.moment(p.torque()))
+			t += "Because the sign hangs to one side, its weight also [b]bends[/b] the post (in the same direction as the wind), and the wind on the sign [b]twists[/b] it. A triangular load's resultant (700·h²/2) acts at 2h/3 from the base, which is where the h³/3 comes from.\n"
 			t += F.try_this("look at the figure: the bending moment from the wind is zero at the top and grows fast toward the base.")
 		3:
 			t += "Square section %s × %s: A = %s m², I = %s m⁴ for each axis (when w = t).\n" % [Units.length(p.post_width), Units.length(p.thickness), Units.fixed(p.area(), 4), Units.fixed(p.inertia_for_x(), 6)]
@@ -148,17 +158,19 @@ func lesson_text() -> String:
 			t += F.equation("most tensile corner", "", Units.stress(p.max_tension_stress()))
 			t += F.equation("most compressed corner", "", Units.stress(p.max_compression_stress()))
 			t += F.equation("transverse shear, τ = 1.5·V/A", "", Units.stress(p.max_transverse_shear()))
+			t += F.equation("torsion, τ = T/(c₁ab²), c₁ ≈ 1/(3 + 1.8b/a)", "", Units.stress(p.torsion_stress()))
 			t += F.equation("largest von Mises stress", "", Units.stress(p.max_von_mises()))
 			t += F.equation("largest strain ≈ σ_v/E", "", Units.strain(p.max_strain()))
-			t += "The maximum is at the [b]base corners[/b] on the windward/leeward faces, where both bending stresses add. That is where ANSYS's red will be (it may show a slightly higher peak right at the fixed face, a local effect of the rigid support).\n"
+			t += "Shear stresses (transverse and torsion) are tiny next to the bending stresses and vanish at the corners. The maximum is at the [b]base corners[/b] on the windward/leeward faces, where both bending stresses add. That is where ANSYS's red will be (it may show a slightly higher peak right at the fixed face, a local effect of the rigid support).\n"
 		4:
-			var d: Vector2 = p.sign_top_displacement()
+			var d: Vector2 = p.sign_corner_displacement()
 			t += "The post bends as a cantilever. Integrating the curvature M/EI twice from the fixed base (chapter 9):\n"
 			t += F.equation("top of the post, along x", "", Units.mm(p.post_deflection(p.post_height, 0)))
 			t += F.equation("top of the post, along y", "", Units.mm(p.post_deflection(p.post_height, 1)))
-			t += F.equation("top of the sign = v(h1) + θ(h1)·h2", "", "x %s, y %s" % [Units.mm(d.x), Units.mm(d.y)])
+			t += F.equation("twist of the post φ = T·h1/(G·J)", "", Units.degrees(p.twist_angle(), 4))
+			t += F.equation("far top corner of the sign = v(h1) + θ(h1)·h2 + φ·b2", "", "x %s, y %s" % [Units.mm(d.x), Units.mm(d.y)])
 			t += F.equation("total deformation max (ANSYS 'Total Deformation')", "", Units.mm(d.length()))
-			t += F.note("For the triangular wind load alone: v_top = 11·w₀·h⁴/(120EI) with w₀ = 700·h1; for F_y1: v = F·h³/(3EI) + M·h²/(2EI) with M = F_y1·h2/2.")
+			t += F.note("Checks: wind on the post alone gives v_top = 11·w₀·h⁴/(120EI) with w₀ = 700·h1; a constant moment M gives M·h²/(2EI); F_y1 gives F·h³/(3EI) + F·z1·h²/(2EI). The sign itself is treated as rigid.")
 		SAFETY:
 			var fs: float = p.factor_of_safety()
 			t += "Compare the largest von Mises stress with the yield strength of structural steel (%s):\n" % Units.stress(p.material.yield_strength)
@@ -168,7 +180,7 @@ func lesson_text() -> String:
 			t += F.try_this("raise the wind factor until FS drops to 1 (gust, storm, or a bigger sign). Then shrink the post to a hollow-like slender one (w, t) and see how much faster it fails: σ_bending ∝ 1/w³ for a square.")
 		6:
 			t += F.question("Maximum stress, strain and deformation, and where they are.", "Stress and strain: at the base (fixed support), on the corners where both bending stresses add (step 4). Deformation: at the top of the sign (step 5). Compare your ANSYS values with these hand values; explain any difference (load application, support modeling, mesh).")
-			t += F.question("Is the signpost structurally safe? Elastic or plastic?", "Use the factor of safety (step 6). With the handout loads the stress is a few MPa against a 250 MPa yield strength: elastic, very safe in strength. Mention what is not checked (fatigue, foundation, connections).")
+			t += F.question("Is the signpost structurally safe? Elastic or plastic?", "Use the factor of safety (step 6). With the handout loads the stress is under 20 MPa against a 250 MPa yield strength: elastic, very safe in strength. Mention what is not checked (fatigue, foundation, connections).")
 			t += F.question("Recommendations to increase safety.", "The post is a solid 0.5 m steel bar, extremely heavy. Better: a hollow section (tube or box) with the same outer size (I barely drops, weight drops a lot; chapter 4), larger depth in the direction of the dominant wind, stiffeners at the base, a stronger foundation/anchor, a sign with openings to reduce the wind force, guys/braces in very windy places, periodic inspection of welds and bolts for fatigue.")
 	return t
 
@@ -204,7 +216,7 @@ func fill_figures(figures: FigureArea) -> void:
 
 
 func frame_points() -> PackedVector3Array:
-	return PackedVector3Array([BASE + Vector3(-0.6, 0.0, 0.3), BASE + Vector3(-0.6, 2.3, 0.0), BASE + Vector3(1.6, 2.3, 0.0), BASE + Vector3(1.6, 0.0, 0.3)])
+	return PackedVector3Array([BASE + Vector3(-0.6, 0.0, 0.3), BASE + Vector3(-0.6, 2.3, 0.0), BASE + Vector3(1.9, 2.3, 0.0), BASE + Vector3(1.9, 0.0, 0.3)])
 
 
 func view_direction() -> Vector3:

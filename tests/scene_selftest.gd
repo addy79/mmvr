@@ -32,7 +32,11 @@ func _run() -> void:
 			continue
 		_main.call("load_station", index)
 		await _frames(4)
-		var station: Station = _main.get("station")
+		var loaded: Variant = _main.get("station")
+		if not is_instance_valid(loaded):
+			_check(false, "%s loads (script error?)" % path)
+			continue
+		var station: Station = loaded
 		var tag: String = ("lab%02d" % station.lab) if is_lab else ("ch%02d" % station.chapter)
 		for s: int in station.step_titles().size():
 			station.set_step(s)
@@ -114,7 +118,7 @@ func _lab_checks(station: Station) -> void:
 			_expect(station, 2, {&"shape": 0.0}, "75000 N", "lab3: cuboid hand force E*d/L*A")
 			_expect(station, 6, {&"shape": 2.0}, "singularity", "lab3: mesh convergence shown")
 		4:
-			_expect(station, 3, {}, "8.63 MPa", "lab4: base von Mises")
+			_expect(station, 3, {}, "17.17 MPa", "lab4: base von Mises (offset sign, wind to the sign top)")
 		5:
 			_expect(station, 1, {}, "5.13°", "lab5: aluminum twist at 15 N")
 		7:
@@ -122,7 +126,8 @@ func _lab_checks(station: Station) -> void:
 		8:
 			_expect(station, 2, {}, "9.155 mm", "lab8: cantilever tip, 15 N at 250 mm")
 		9:
-			_expect(station, 2, {}, "0.446 N", "lab9: shear at the cut, 200 g at X2")
+			_expect(station, 2, {}, "1.962 N", "lab9: Q = W at the cut, 200 g at X2")
+			_expect(station, 2, {}, "190 g", "lab9: W2 = m·X2/a = 200 × 0.10/0.105")
 		10:
 			_expect(station, 3, {}, "49.49 MPa", "lab10: W200x52 flange stress")
 		11:

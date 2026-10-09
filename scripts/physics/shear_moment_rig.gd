@@ -1,41 +1,47 @@
 class_name ShearMomentRig
 extends RefCounted
-## Lab 9's shear force and bending moment device: a simply supported beam of span L, cut at
-## x = c, where a mechanism lets two hangers balance the internal forces at the cut. A load
-## of mass m hangs at x from the left support. Balancing masses:
-##   shear hanger:          W1*g = Q          (Q = shear force at the cut)
-##   bending moment hanger: W2*g*a = M        (M = bending moment at the cut, arm a)
+## Lab 9's shear force and bending moment unit (Edibon MMF, handout figure 4): the beam is cut
+## at section x-x; the free arm on the left carries the load W at distance x from the cut,
+## and the mechanism at the cut balances it with two hangers:
+##   shear hanger (3):          W1 = W            Q_x = -W = W1
+##   bending moment hanger (4): W2*a = W*x        M_x = -W*x = W2*a
+## The free arm is a cantilever built in at the cut: Q is the same everywhere between the
+## load and the cut, and M grows linearly from 0 at the load to W*x at the cut.
 
 const GRAVITY: float = 9.81  ## g [m/s^2]
+const ARM_LENGTH: float = 0.18  ## free arm, from the cut to its free end [m] (beyond X1 = 0.15 m)
 
-var span: float = 0.44           ## L [m]
-var cut: float = 0.30            ## c [m] from the left support
 var moment_arm: float = 0.105    ## a [m]
 var load_mass: float = 0.2       ## m [kg]
-var load_position: float = 0.15  ## x [m] from the left support
+var load_position: float = 0.15  ## x [m] from the cut
 
 
-func beam() -> SimplySupportedBeam:
-	return SimplySupportedBeam.new(span, load_mass * GRAVITY, load_position, RectSection.new(0.02, 0.006), LabMaterial.steel())
+## The free arm as a cantilever fixed at the cut (s = 0) with W at s = x.
+func arm() -> CantileverBeam:
+	return CantileverBeam.new(ARM_LENGTH, load_mass * GRAVITY, load_position, RectSection.new(0.02, 0.006), LabMaterial.aluminum())
 
 
-# Shear at the cut, from the right-hand part: Q = R_B = W*x/L when the load is left of the cut
-# (magnitude; with the B&J convention V = -R_B there)
+# W = m*g
+func load_weight() -> float:
+	return load_mass * GRAVITY
+
+
+# Shear at the cut: |Q| = W, whatever the load's position
 func theoretical_shear() -> float:
-	return absf(beam().shear_at(cut))
+	return load_weight()
 
 
-# Moment at the cut: M = R_B*(L - c) = W*x*(L - c)/L for a load left of the cut
+# Moment at the cut: |M| = W*x
 func theoretical_moment() -> float:
-	return absf(beam().moment_at(cut))
+	return load_weight() * load_position
 
 
-# W1 = Q/g
+# W1 = Q/g = m
 func shear_hanger_mass() -> float:
 	return theoretical_shear() / GRAVITY
 
 
-# W2 = M/(g*a)
+# W2 = M/(g*a) = m*x/a
 func moment_hanger_mass() -> float:
 	return theoretical_moment() / (GRAVITY * moment_arm)
 

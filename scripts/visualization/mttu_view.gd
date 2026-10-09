@@ -1,19 +1,22 @@
 class_name MttuView
 extends Node3D
-## The Mechanical Tensile Testing Unit, drawn 5x real size: springs on the base pull the
-## lower anchor down, the flat specimen joins it to the upper anchor, and the wheel on top
-## raises the upper anchor. A dial gauge under the lower anchor reads the springs'
-## extension dL. The specimen is colored by sigma/sigma_U and splits when broken.
+## The Mechanical Tensile Testing Unit (as in the handout photo, stood upright), drawn 5x real
+## size: three springs on the base pull the lower anchor down, the flat dog-bone specimen
+## joins it to the upper anchor, and the wheel's lead screw raises the upper anchor along a
+## graduated scale. A dial gauge reads the springs' extension dL. The specimen's gauge is
+## colored by sigma/sigma_U and splits when broken.
 
 const DRAW: float = 5.0
 const TABLE: float = 0.75        ## top of the base [m]
 const SPRING_REST: float = 0.18  ## drawn spring length with no load [m]
+const GRIP: float = 0.015        ## real grip length of the dog-bone at each end [m]
 
-var _specimen: Array[MeshInstance3D] = [MeshInstance3D.new(), MeshInstance3D.new()]
+var _specimen: Array[MeshInstance3D] = [MeshInstance3D.new(), MeshInstance3D.new()]  ## gauge (two halves once broken)
+var _grips: Array[MeshInstance3D] = [MeshInstance3D.new(), MeshInstance3D.new()]
 var _specimen_material: StandardMaterial3D = StandardMaterial3D.new()
 var _lower: MeshInstance3D = MeshInstance3D.new()
 var _upper: MeshInstance3D = MeshInstance3D.new()
-var _springs: Array[MeshInstance3D] = [MeshInstance3D.new(), MeshInstance3D.new()]
+var _springs: Array[MeshInstance3D] = [MeshInstance3D.new(), MeshInstance3D.new(), MeshInstance3D.new()]
 var _wheel: MeshInstance3D = MeshInstance3D.new()
 var _needle: Node3D = Node3D.new()
 var _screw: MeshInstance3D = MeshInstance3D.new()
@@ -41,10 +44,10 @@ func _init() -> void:
 		add_child(a)
 	var spring_material := StandardMaterial3D.new()
 	spring_material.albedo_color = Color(0.75, 0.6, 0.25)
-	for i: int in 2:
+	for i: int in 3:
 		var cyl := CylinderMesh.new()
-		cyl.top_radius = 0.025
-		cyl.bottom_radius = 0.025
+		cyl.top_radius = 0.022
+		cyl.bottom_radius = 0.022
 		cyl.height = 1.0
 		_springs[i].mesh = cyl
 		_springs[i].material_override = spring_material
@@ -53,6 +56,22 @@ func _init() -> void:
 		s.mesh = BoxMesh.new()
 		s.material_override = _specimen_material
 		add_child(s)
+	var grip_material := StandardMaterial3D.new()
+	grip_material.albedo_color = Color(0.8, 0.8, 0.78)
+	for g: MeshInstance3D in _grips:
+		g.mesh = BoxMesh.new()
+		g.material_override = grip_material
+		add_child(g)
+	# Graduated scale beside the upper anchor's path, a tick every 10 mm (real).
+	var scale_white := StandardMaterial3D.new()
+	scale_white.albedo_color = Color(0.93, 0.93, 0.9)
+	var board := _box(Vector3(0.06, 0.6, 0.01), scale_white)
+	board.position = Vector3(0.2, TABLE + 0.75, 0.05)
+	var ink := StandardMaterial3D.new()
+	ink.albedo_color = Color(0.1, 0.1, 0.1)
+	for i: int in 13:
+		var tick := _box(Vector3(0.03 if i % 5 == 0 else 0.015, 0.003, 0.012), ink)
+		tick.position = Vector3(0.185, TABLE + 0.45 + i * 0.05, 0.05)
 	var wheel := CylinderMesh.new()
 	wheel.top_radius = 0.16
 	wheel.bottom_radius = 0.16
@@ -102,11 +121,12 @@ func _init() -> void:
 
 func show_state(rig: TensileRig, state: Dictionary) -> void:
 	var lower_y: float = TABLE + SPRING_REST + state.spring * DRAW
-	for i: int in 2:
+	for i: int in 3:
 		_springs[i].scale.y = lower_y - TABLE
-		_springs[i].position = Vector3(-0.07 + 0.14 * i, (TABLE + lower_y) / 2.0, 0.0)
+		_springs[i].position = Vector3(-0.07 + 0.07 * i, (TABLE + lower_y) / 2.0, 0.0)
 	_lower.position = Vector3(0.0, lower_y + 0.03, 0.0)
-	var bottom: float = lower_y + 0.06
+	var grip: float = GRIP * DRAW
+	var bottom: float = lower_y + 0.06 + grip
 	var length: float = (rig.gauge_length + state.elongation) * DRAW
 	var size := Vector3(rig.width * DRAW, 0.0, rig.thickness * DRAW)
 	var broken: bool = state.broken
@@ -116,9 +136,11 @@ func show_state(rig: TensileRig, state: Dictionary) -> void:
 		box.size = Vector3(size.x, piece - (0.01 if broken else 0.0), size.z)
 		_specimen[i].position = Vector3(0.0, bottom + piece / 2.0 + (piece if i == 1 else 0.0), 0.0)
 		_specimen[i].visible = broken or i == 0
+		(_grips[i].mesh as BoxMesh).size = Vector3(size.x * 2.0, grip, size.z)
+		_grips[i].position = Vector3(0.0, bottom - grip / 2.0 if i == 0 else bottom + length + grip / 2.0, 0.0)
 	var ratio: float = state.stress / rig.material.ultimate_strength
 	_specimen_material.albedo_color = Color(0.86, 0.86, 0.84).lerp(Color(0.9, 0.15, 0.1), clampf(ratio, 0.0, 1.0))
-	_upper.position = Vector3(0.0, bottom + length + 0.03, 0.0)
+	_upper.position = Vector3(0.0, bottom + length + grip + 0.03, 0.0)
 	var screw_bottom: float = _upper.position.y + 0.03
 	_screw.scale.y = TABLE + 1.42 - screw_bottom
 	_screw.position = Vector3(0.0, (screw_bottom + TABLE + 1.42) / 2.0, 0.0)

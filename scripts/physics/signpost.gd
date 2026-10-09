@@ -1,10 +1,12 @@
 class_name Signpost
 extends RefCounted
-## Lab 4: a solid steel post (w along x, t along y, height h1) with a rigid sign
-## (L along x, h2 high, t thick) centered on top. z is vertical, measured from the fixed base.
-## Loads (handout): sign weight W_z1 per unit length of sign, wind on the post
-## W_x2 = rate*z [N/m] along x, wind force F_y1 on the sign face (at its center), and the
-## support's weight F_z1. wind_factor scales both wind loads.
+## Lab 4 (handout figure 3): a solid steel post (w along x, t along y, height h1) with a rigid
+## sign (b2 = L along x, h2 high, t thick) on top, running from the post toward +x, so its
+## center is sign_offset from the post's axis. z is vertical, measured from the fixed base.
+## Loads: sign weight W_z1 per unit length of sign (eccentric: it bends the post), wind
+## W_x2 = rate*z [N/m] along x over the post (and the sign's height), wind force F_y1 on the
+## sign face at (x1, z1) (eccentric: it twists the post), and the support's weight F_z1 on
+## the post's axis. wind_factor scales both wind loads.
 
 var sign_length: float = 4.0        ## L [m]
 var post_height: float = 8.5        ## h1 [m]
@@ -16,7 +18,10 @@ var wind_x_rate: float = 700.0      ## W_x2 = rate*z [N/m per m of height]
 var wind_y_force: float = 3600.0    ## F_y1 [N]
 var support_weight: float = 11000.0 ## F_z1 [N]
 var wind_factor: float = 1.0
-var wind_x_on_sign: bool = false    ## W_x2 also acts along the sign's height
+var wind_x_on_sign: bool = true     ## W_x2 also acts along the sign's height (as drawn)
+var sign_offset: float = 2.0        ## x of the sign's center from the post axis [m] (L/2)
+var force_x: float = 2.0            ## x1: F_y1's distance from the post axis [m]
+var force_z: float = 1.25           ## z1: F_y1's height above the post top [m]
 var material: LabMaterial = LabMaterial.steel()
 
 const STEPS: int = 2000
@@ -62,18 +67,42 @@ func base_shear_y() -> float:
 	return wind_factor * wind_y_force
 
 
-## Bending moment in the post at height z due to the x-wind:
-# M_x(z) = integral from z to z_top of w_x(s)*(s - z) ds = factor*rate*(z_top^3/3 - z*z_top^2/2 + z^3/6)
+## Bending moment in the post (z <= h1) in the x-z plane: the x-wind plus the eccentric
+## sign weight (both bend the top toward +x):
+# M_x(z) = integral from z to z_top of w_x(s)*(s - z) ds + W_z1*L*e
+#        = factor*rate*(z_top^3/3 - z*z_top^2/2 + z^3/6) + W_z1*L*e
 func moment_x_at(z: float) -> float:
 	var top: float = _wind_x_top()
-	if z >= top:
-		return 0.0
-	return wind_factor * wind_x_rate * (pow(top, 3) / 3.0 - z * top * top / 2.0 + pow(z, 3) / 6.0)
+	var m: float = sign_weight_per_length * sign_length * sign_offset if z <= post_height else 0.0
+	if z < top:
+		m += wind_factor * wind_x_rate * (pow(top, 3) / 3.0 - z * top * top / 2.0 + pow(z, 3) / 6.0)
+	return m
 
 
-# M_y(z) = F_y1*(h1 + h2/2 - z) (force at the sign's center)
+# M_y(z) = F_y1*(h1 + z1 - z)
 func moment_y_at(z: float) -> float:
-	return base_shear_y() * maxf(post_height + sign_height / 2.0 - z, 0.0)
+	return base_shear_y() * maxf(post_height + force_z - z, 0.0)
+
+
+# Torque on the post: T = F_y1*x1 (the wind on the sign acts off the post's axis)
+func torque() -> float:
+	return base_shear_y() * force_x
+
+
+## Rectangular post a x b (a >= b) in torsion (B&J 3.12, approximations of the tabulated c1, c2):
+# tau_max = T/(c1*a*b^2), c1 = 1/(3 + 1.8*b/a)
+func torsion_stress() -> float:
+	var a: float = maxf(post_width, thickness)
+	var b: float = minf(post_width, thickness)
+	return absf(torque()) * (3.0 + 1.8 * b / a) / (a * b * b)
+
+
+# phi = T*L/(c2*a*b^3*G), c2*a*b^3 = J = a*b^3*(1/3 - 0.21*(b/a)*(1 - b^4/(12a^4)))
+func twist_angle() -> float:
+	var a: float = maxf(post_width, thickness)
+	var b: float = minf(post_width, thickness)
+	var j: float = a * pow(b, 3) * (1.0 / 3.0 - 0.21 * b / a * (1.0 - pow(b / a, 4) / 12.0))
+	return torque() * post_height / (j * material.shear_modulus())
 
 
 # Base corner stresses: sigma = -N/A +- M_x*c_x/I_x +- M_y*c_y/I_y (both moments add at two corners)
@@ -98,14 +127,15 @@ func max_transverse_shear() -> float:
 	return 1.5 * maxf(base_shear_x(), base_shear_y()) / area()
 
 
-# Largest von Mises stress at the base. Candidates: the corners (sigma only, tau = 0 there),
-# and the face midpoints, where one bending stress is maximal and the other load's shear is
-# 1.5*V/A: sigma_v = sqrt(sigma^2 + 3*tau^2).
+# Largest von Mises stress at the base. Candidates: the corners (sigma only: neither torsion
+# nor transverse shear stress exists at a corner), and the face midpoints, where one bending
+# stress is maximal and the torsion stress (conservatively tau_max on both faces) adds to the
+# other load's transverse shear 1.5*V/A: sigma_v = sqrt(sigma^2 + 3*tau^2).
 func max_von_mises() -> float:
 	var n: float = base_axial_force() / area()
 	var corner: float = maxf(absf(max_tension_stress()), absf(max_compression_stress()))
-	var face_x: float = sqrt(pow(n + _bending_x_stress(), 2) + 3.0 * pow(1.5 * base_shear_y() / area(), 2))
-	var face_y: float = sqrt(pow(n + _bending_y_stress(), 2) + 3.0 * pow(1.5 * base_shear_x() / area(), 2))
+	var face_x: float = sqrt(pow(n + _bending_x_stress(), 2) + 3.0 * pow(torsion_stress() + 1.5 * base_shear_y() / area(), 2))
+	var face_y: float = sqrt(pow(n + _bending_y_stress(), 2) + 3.0 * pow(torsion_stress() + 1.5 * base_shear_x() / area(), 2))
 	return maxf(corner, maxf(face_x, face_y))
 
 
@@ -146,6 +176,11 @@ func sign_top_displacement() -> Vector2:
 		var r: Vector2 = _integrate(post_height, d)
 		out[d] = r.y + r.x * sign_height
 	return out
+
+
+## The sign's far top corner (x = L from the post): add the twist, which moves it along y by phi*L.
+func sign_corner_displacement() -> Vector2:
+	return sign_top_displacement() + Vector2(0.0, twist_angle() * sign_length)
 
 
 # Largest equivalent strain ~ sigma_v/E (linear elastic)

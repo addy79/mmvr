@@ -69,30 +69,37 @@ func test_fem_cantilever_bending() -> void:
 	assert_almost_eq(-fem.displacement(fem.nx, fem.ny / 2).y, 2.0156e-3, 0.03 * 2.0156e-3, "tip deflection")
 
 
-# Signpost (handout values), post 0.5 x 0.5 m: N = 11000 + 1340*4 = 16360 N,
-#   M_x = 700*8.5^3/3 = 143.30 kN*m, M_y = 3600*(8.5 + 1.25) = 35.10 kN*m, S = 0.5^3/6,
-#   sigma = -0.0654 + 6.878 + 1.685 = 8.497 MPa (tension), -8.628 MPa (compression).
+# Signpost (handout figure: sign from the post toward +x, wind up to the sign top, F_y1 at the
+# sign's center x1 = 2 m, z1 = 1.25 m): post 0.5 x 0.5 m, N = 11000 + 1340*4 = 16360 N,
+#   M_x = 700*11^3/3 + 5360*2 = 321.29 kN*m, M_y = 3600*9.75 = 35.10 kN*m, T = 3600*2 = 7.2 kN*m,
+#   S = 0.5^3/6: corners sigma = -0.0654 + 15.422 + 1.685 = 17.04 MPa, -17.17 MPa (governs),
+#   torsion tau = 7200*(3 + 1.8)/0.5^3 = 0.2765 MPa.
 func test_signpost_base_stresses() -> void:
 	var s := Signpost.new()
 	assert_within_1pct(s.base_axial_force(), 16360.0, "N")
-	assert_within_1pct(s.base_shear_x(), 25287.5, "V_x")
-	assert_within_1pct(s.moment_x_at(0.0), 143295.8, "M_x")
+	assert_within_1pct(s.base_shear_x(), 42350.0, "V_x = 700*11^2/2")
+	assert_within_1pct(s.moment_x_at(0.0), 321286.7, "M_x")
 	assert_within_1pct(s.moment_y_at(0.0), 35100.0, "M_y")
-	assert_within_1pct(s.max_tension_stress(), 8.497e6, "sigma_t")
-	assert_within_1pct(s.max_compression_stress(), -8.628e6, "sigma_c")
-	assert_within_1pct(s.max_von_mises(), 8.628e6, "von Mises at a corner")
+	assert_within_1pct(s.torque(), 7200.0, "T")
+	assert_within_1pct(s.torsion_stress(), 0.2765e6, "tau torsion")
+	assert_within_1pct(s.max_tension_stress(), 17.04e6, "sigma_t")
+	assert_within_1pct(s.max_compression_stress(), -17.172e6, "sigma_c")
+	assert_within_1pct(s.max_von_mises(), 17.172e6, "von Mises at a corner")
 
 
-# Triangular load (w0 = 700*8.5 = 5950 N/m at the top): v = 11*w0*L^4/(120EI) = 2.733 mm,
-# theta = w0*L^3/(8EI) = 4.385e-4, sign top: 2.733 + 0.4385*2.5 = 3.829 mm.
+# Wind on the post only (w0 = 700*8.5 = 5950 N/m at the top): v = 11*w0*L^4/(120EI) = 2.733 mm,
+# plus the eccentric weight's constant moment 10720 N*m: M*L^2/(2EI) = 0.3718 mm -> 3.105 mm.
 # y: F = 3600 N and M = 3600*1.25 at the post top: v = FL^3/3EI + ML^2/2EI = 0.8635 mm,
-# theta = 1.6157e-4, sign top: 1.2674 mm.
+# theta = 1.6157e-4, sign top: 1.2674 mm. Twist: J = 0.1408*0.5^4, phi = 7200*8.5/(G*J) = 9.04e-5,
+# far corner moves 4*phi = 0.362 mm more along y.
 func test_signpost_deflections() -> void:
 	var s := Signpost.new()
-	assert_within_1pct(s.post_deflection(8.5, 0), 2.733e-3, "post top, x")
-	assert_within_1pct(s.sign_top_displacement().x, 3.829e-3, "sign top, x")
+	s.wind_x_on_sign = false
+	assert_within_1pct(s.post_deflection(8.5, 0), 3.105e-3, "post top, x")
 	assert_within_1pct(s.post_deflection(8.5, 1), 0.8635e-3, "post top, y")
 	assert_within_1pct(s.sign_top_displacement().y, 1.2674e-3, "sign top, y")
+	assert_within_1pct(s.twist_angle(), 9.04e-5, "twist")
+	assert_within_1pct(s.sign_corner_displacement().y - s.sign_top_displacement().y, 0.3616e-3, "corner from twist")
 
 
 # Overhang: L = 0.5, s = 0.4, P = 10 N at the tip, 20 x 4 mm steel bar (EI = 21.333 N*m^2):
@@ -145,16 +152,19 @@ func test_torsion_lever() -> void:
 	assert_within_1pct(s.modulus_from_slope(326.2, 0.1), 76.923e9, "G from slope")
 
 
-# Lab 9: 400 g at x = 0.15 m, L = 0.44 m, cut at 0.30 m, a = 0.105 m:
-#   W = 3.924 N, Q = W*x/L = 1.3377 N (W1 = 136.4 g), M = Q*(L - c) = 0.18728 N*m (W2 = 181.8 g)
+# Lab 9 (Edibon MMF, X from the cut): 400 g at x = 0.15 m, a = 0.105 m:
+#   W = 3.924 N = Q, M = W*x = 0.5886 N*m, W1 = 400 g, W2 = 400*0.15/0.105 = 571.4 g;
+#   the free arm (cantilever from the cut) carries M = -W*x at the cut.
 func test_shear_moment_rig() -> void:
 	var r := ShearMomentRig.new()
 	r.load_mass = 0.4
-	assert_within_1pct(r.theoretical_shear(), 1.3377, "Q")
-	assert_within_1pct(r.theoretical_moment(), 0.18728, "M")
-	assert_within_1pct(r.shear_hanger_mass(), 0.13637, "W1")
-	assert_within_1pct(r.moment_hanger_mass(), 0.18182, "W2")
-	assert_within_1pct(r.moment_from_mass(0.18182), 0.18728, "M back from W2")
+	assert_within_1pct(r.theoretical_shear(), 3.924, "Q = W")
+	assert_within_1pct(r.theoretical_moment(), 0.5886, "M = W*x")
+	assert_within_1pct(r.shear_hanger_mass(), 0.4, "W1 = W")
+	assert_within_1pct(r.moment_hanger_mass(), 0.57143, "W2 = W*x/a")
+	assert_within_1pct(r.moment_from_mass(0.57143), 0.5886, "M back from W2")
+	assert_within_1pct(r.arm().moment_at(0.0), -0.5886, "arm moment at the cut")
+	assert_within_1pct(r.arm().shear_at(0.05), 3.924, "arm shear between cut and load")
 
 
 # W200x52 (d 206, b_f 204, t_f 12.6, t_w 7.9 mm), propped cantilever, L = 1 m, w = 200 kN/m:
